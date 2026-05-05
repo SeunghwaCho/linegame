@@ -199,3 +199,21 @@ CLAUDE.md 신규 규칙:
 - solver 휴리스틱 false negative 대응: cellSize 단계 fallback (14→10→6)
 - 전체: **976/976 테스트 통과**
 - 풀 빌드 OK: dist.js 92KB
+
+## 2026-05-05 — 레벨 잠금 (이전 레벨 미클리어 시 다음 레벨 진입 차단)
+
+**의도**: "이전 게임을 못 깨면 다음 레벨을 못 하게" — 메뉴에서 순차 진행을 강제.
+
+**규칙**:
+- 레벨 1은 항상 잠금 해제.
+- 레벨 N (N>1)은 레벨 N-1이 `completed` 에 있을 때만 잠금 해제 (레벨 팩 배열 인덱스 기준).
+- 잠긴 셀은 회색 배경 + 회색 테두리 + 🔒 아이콘. hover/press 비활성, 탭 시 `playReject` 사운드만.
+
+**구현**:
+- `src/scene/menuScene.ts`:
+  - `CellRect.unlocked: boolean` 추가, `layoutCells` 에서 `i === 0 || prev.completed` 로 계산.
+  - `draw` 에서 잠금 셀 회색 처리 + 별/체크 대신 🔒 표시.
+  - `onDown/onMove` 에서 잠금 셀은 pressed/hover 상태 진입 자체를 차단.
+  - `onUp` 에서 잠금 셀 탭 → `playReject` (피드백), 잠금 해제 셀만 GameScene 전환.
+
+**검증**: 976/976 테스트 통과, 빌드 OK (dist.js 92KB).

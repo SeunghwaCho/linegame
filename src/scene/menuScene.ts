@@ -10,6 +10,7 @@ interface CellRect extends Rect {
   template: LevelTemplate;
   done: boolean;
   stars: number; // 0~3
+  unlocked: boolean; // 첫 레벨 || 이전 레벨 클리어 시 true
 }
 
 /**
@@ -60,6 +61,8 @@ export class MenuScene implements Scene {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const lv = this.ctx.pack.levels[i]!;
+      const prev = this.ctx.pack.levels[i - 1];
+      const unlocked = i === 0 || (prev !== undefined && this.completed.has(prev.id));
       this.cells.push({
         x: startX + col * (size + gap),
         y: startY + row * (size + gap),
@@ -68,6 +71,7 @@ export class MenuScene implements Scene {
         template: lv,
         done: this.completed.has(lv.id),
         stars: this.bestStars.get(lv.id) ?? 0,
+        unlocked,
       });
     }
   }
@@ -115,26 +119,31 @@ export class MenuScene implements Scene {
       const pressed = this.pressedIdx === i;
       const hover = this.hoverIdx === i;
       ctx.save();
-      const bg = pressed
-        ? "#cfd8e3"
-        : hover
-          ? "#f0f0f0"
-          : c.done
-            ? "#e8f5e9"
-            : "#ffffff";
+      const bg = !c.unlocked
+        ? "#eeeeee"
+        : pressed
+          ? "#cfd8e3"
+          : hover
+            ? "#f0f0f0"
+            : c.done
+              ? "#e8f5e9"
+              : "#ffffff";
       ctx.fillStyle = bg;
-      ctx.strokeStyle = c.done ? "#7cb342" : "#aab2bd";
+      ctx.strokeStyle = !c.unlocked ? "#cfcfcf" : c.done ? "#7cb342" : "#aab2bd";
       ctx.lineWidth = 1;
       roundRect(ctx, c.x + 0.5, c.y + 0.5, c.w - 1, c.h - 1, 8);
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = "#222";
+      ctx.fillStyle = c.unlocked ? "#222" : "#aaa";
       ctx.font = `${Math.floor(c.w * 0.32)}px -apple-system, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(c.template.id), c.x + c.w / 2, c.y + c.h * 0.42);
-      if (c.stars > 0) {
+      if (!c.unlocked) {
+        ctx.font = `${Math.floor(c.w * 0.28)}px -apple-system, system-ui, sans-serif`;
+        ctx.fillText("🔒", c.x + c.w / 2, c.y + c.h * 0.74);
+      } else if (c.stars > 0) {
         // 셀 하단 별 ★★★ 미니어처
         const starSize = c.w * 0.16;
         const totalW = starSize * 3 + 2 * 2;
@@ -163,11 +172,13 @@ export class MenuScene implements Scene {
   }
 
   onDown(cssX: number, cssY: number): void {
-    this.pressedIdx = this.cellIndexAt(cssX, cssY);
+    const idx = this.cellIndexAt(cssX, cssY);
+    this.pressedIdx = idx !== -1 && this.cells[idx]!.unlocked ? idx : -1;
   }
 
   onMove(cssX: number, cssY: number): void {
-    this.hoverIdx = this.cellIndexAt(cssX, cssY);
+    const idx = this.cellIndexAt(cssX, cssY);
+    this.hoverIdx = idx !== -1 && this.cells[idx]!.unlocked ? idx : -1;
     if (this.pressedIdx !== -1 && this.hoverIdx !== this.pressedIdx) {
       this.pressedIdx = -1;
     }
@@ -175,9 +186,13 @@ export class MenuScene implements Scene {
 
   onUp(cssX: number, cssY: number): void {
     const idx = this.cellIndexAt(cssX, cssY);
-    if (idx !== -1 && idx === this.pressedIdx) {
-      const tmpl = this.cells[idx]!.template;
-      this.ctx.app.setScene(sceneRegistry.game(this.ctx, tmpl));
+    if (idx !== -1) {
+      const cell = this.cells[idx]!;
+      if (!cell.unlocked) {
+        this.ctx.sound.playReject();
+      } else if (idx === this.pressedIdx) {
+        this.ctx.app.setScene(sceneRegistry.game(this.ctx, cell.template));
+      }
     }
     this.pressedIdx = -1;
   }
