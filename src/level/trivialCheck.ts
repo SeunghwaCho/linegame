@@ -45,7 +45,7 @@ export function isTriviallySolvable(level: Level): boolean {
   }
 
   // 1) 어떤 직선도 다른 색 dot의 반경에 닿으면 직선으로 못 풀림
-  const DEFAULT_R = 18;
+  const DEFAULT_R = 13;
   for (const s of segs) {
     for (const d of level.dots) {
       if (d.id === s.aId || d.id === s.bId) continue; // 본인 endpoint는 스킵

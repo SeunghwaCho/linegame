@@ -16,7 +16,7 @@
 import type { Level, LevelTemplate, Variant, LevelDot } from "./types.ts";
 import { enumerateCompatibleSets } from "./colorConstraint.ts";
 
-const PALETTE_SIZE = 8;
+const PALETTE_SIZE = 11;
 const VARIANT_BOUNDARY_TOL = 0.5; // loader.ts CIRCLE_BOUNDARY_TOL과 동일 의미 — 번들 시 const 충돌 회피용 별칭
 
 export interface VariantParams {
@@ -37,7 +37,7 @@ export function makeRng(seed: number): () => number {
   };
 }
 
-const DOT_RADIUS_SAFE = 20; // dot 반경 + 회전 시 떨림 마진
+const DOT_RADIUS_SAFE = 15; // dot 반경(13) + 회전 시 떨림 마진
 
 /**
  * 회전 후 모든 dot이 보드 안에 있는가?

@@ -1,13 +1,16 @@
 /** colorId → CSS color. 색맹 친화 팔레트 (Okabe-Ito 변형). */
 const PALETTE: ReadonlyArray<string> = [
-  "#e63946", // red
-  "#1d3557", // navy
-  "#2a9d8f", // teal
-  "#f4a261", // orange
-  "#9b5de5", // purple
-  "#06d6a0", // mint
-  "#ffd166", // yellow
-  "#118ab2", // blue
+  "#e63946", // 0 red       — RED_GROUP
+  "#1d3557", // 1 navy
+  "#2a9d8f", // 2 teal      — GREEN_GROUP
+  "#f4a261", // 3 orange
+  "#9b5de5", // 4 purple
+  "#06d6a0", // 5 mint      — GREEN_GROUP
+  "#ffd166", // 6 yellow
+  "#118ab2", // 7 blue
+  "#ec407a", // 8 pink
+  "#6d4c41", // 9 brown
+  "#00bcd4", // 10 cyan
 ];
 
 export function colorOf(colorId: number): string {

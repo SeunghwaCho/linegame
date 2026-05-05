@@ -8,7 +8,7 @@ import type {
 } from "./types.ts";
 import type { Dot } from "../game/types.ts";
 
-const DEFAULT_DOT_RADIUS = 18;
+const DEFAULT_DOT_RADIUS = 13;
 const CIRCLE_BOUNDARY_TOL = 0.5; // px — float 누적 허용 오차
 
 /** JSON 텍스트를 LevelPack으로 파싱하고 기본 검증을 수행한다. */

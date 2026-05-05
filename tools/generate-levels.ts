@@ -33,7 +33,7 @@ import type {
   Level,
 } from "../src/level/types.ts";
 
-const PALETTE_SIZE = 8;
+const PALETTE_SIZE = 11;
 const BOARD = 400;
 const VARIANTS_PER_LEVEL = 3;
 const MAX_RETRIES_PER_VARIANT = 80;
@@ -51,10 +51,11 @@ interface DifficultyConfig {
 }
 
 function difficultyOf(id: number): DifficultyConfig {
-  // 색 수: 6 부터 빠르게 max(7) 도달. 6→6, 8→7, 10+→7.
+  // 색 수: 6→6, 8-60→7, 61+→10.
   let numColors: number;
   if (id <= 7) numColors = 6;
-  else numColors = 7;
+  else if (id <= 60) numColors = 7;
+  else numColors = 10;
 
   // 색이 max 인 구간이 길어 — 길이·셀 크기로 난이도 차별화
   let cellSize: number;
@@ -73,9 +74,10 @@ function difficultyOf(id: number): DifficultyConfig {
     minLen = 18;
     maxLen = 23;
   } else {
-    cellSize = 19;
-    minLen = 20;
-    maxLen = 25;
+    // 61+ : 10색 — 색 수가 +3 점프하므로 길이·cellSize 는 완화 (10색 자체로 빽빽함)
+    cellSize = 18;
+    minLen = 14;
+    maxLen = 19;
   }
   return { numColors, cellSize, minLen, maxLen };
 }
@@ -192,7 +194,7 @@ function nameForCircle(id: number, n: number): string {
   return `${themes[id % themes.length]} ${id} (${n}색)`;
 }
 
-const DOT_RADIUS = 18;
+const DOT_RADIUS = 13;
 const CIRCLE_R = 200 - 20; // BOARD/2 - 20 = 180
 
 // ─── 사각판(6~7) — 회전 안전성을 위한 내접 disk 제약 ─────────────────────────
@@ -356,7 +358,7 @@ function genCircleVariant(id: number, varIdx: number): Variant {
       minLen: cfg.minLen,
       maxLen: cfg.maxLen,
       seed,
-      maxWalkAttempts: 12,
+      maxWalkAttempts: 30,
       cellAllowed,
       startCellAllowed,
     });
@@ -375,8 +377,12 @@ function genCircleVariant(id: number, varIdx: number): Variant {
       circle: variant.circle,
     };
     if (isTriviallySolvable(tmpLevel)) continue;
-    // path 자체가 해여도, 다른 색을 둘러싸 isolation 발생 가능 — 휴리스틱 solver 로 한 번 더 확인
-    if (!isSolvable(tmpLevel, { cellSize: 12, maxAttempts: 80 })) continue;
+    // path 자체가 해여도, 다른 색을 둘러싸 isolation 발생 가능 — 휴리스틱 solver 로 한 번 더 확인.
+    // false negative 회피를 위해 단계적으로 정밀도 ↑.
+    const ok =
+      isSolvable(tmpLevel, { cellSize: 14, maxAttempts: 60 }) ||
+      isSolvable(tmpLevel, { cellSize: 10, maxAttempts: 200 });
+    if (!ok) continue;
     return variant;
   }
   throw new Error(`레벨 ${id} variant ${varIdx}: 원형 puzzle 생성 실패`);

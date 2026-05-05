@@ -90,7 +90,7 @@ test("toGameDots: 기본 반경 적용 + 좌표 변환", () => {
   };
   const dots = toGameDots(lv);
   assert.equal(dots.length, 2);
-  assert.equal(dots[0]!.radius, 18);
+  assert.equal(dots[0]!.radius, 13);
   assert.deepEqual(dots[0]!.center, { x: 80, y: 200 });
 });
 

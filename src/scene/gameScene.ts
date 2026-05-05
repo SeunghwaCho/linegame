@@ -62,13 +62,13 @@ export class GameScene implements Scene {
     this.template = template;
     this.board = new Board(toGameDots(level), {
       cellSize: 60,
-      lineHalfWidth: 4,
+      lineHalfWidth: 2.5,
       circle: level.circle,
     });
     this.renderer = new Renderer({
       worldWidth: level.width,
       worldHeight: level.height,
-      lineWidth: 8,
+      lineWidth: 5,
       circle: level.circle,
     });
 
