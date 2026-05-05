@@ -238,3 +238,18 @@ CLAUDE.md 신규 규칙:
   - `resetBoard()`에서 `gameOver`/모달 초기화.
 
 **검증**: 976/976 테스트 통과, 빌드 OK (dist.js 96KB).
+
+## 2026-05-05 — 타이머바 버튼 영역 침범 수정
+
+**증상**: 좁은 화면에서 무지개 시간바가 우측 툴바 버튼(💡 ⏸ 🔊 ↺) 위로 겹쳐 보임.
+
+**원인**: `drawTimerBar`가 `bx = (layout.width - barW) / 2`로 화면 중앙을 기준으로 정렬했는데, 좌측 ◀ 1개·우측 4개 버튼이라 가용 영역이 비대칭. 화면이 좁아지면 중앙 정렬된 바가 우측 버튼 묶음을 침범.
+
+**수정**:
+- `src/scene/gameScene.ts`:
+  - 툴바 배치 상수(`TB_BTN_W/TB_GAP/TB_EDGE/TB_PAD`)를 정적 필드로 추출 — `layoutToolbar`/`drawTimerBar` 공용.
+  - `drawTimerBar`에서 좌/우 버튼 사이의 가용 폭으로 `barW`를 캡(`Math.min(560, available)`).
+  - 바를 화면 중앙이 아닌 **가용 영역 중심**(`(leftEdge + rightEdge) / 2`)에 정렬.
+  - 레벨 이름 타이틀도 `toolbarMidX(layout)` 헬퍼로 같은 중심에 맞춰 바와 정렬.
+
+**검증**: 빌드 OK (dist.js 97KB).

@@ -168,28 +168,35 @@ export class GameScene implements Scene {
     this.timeOutModal.show();
   }
 
+  // 툴바 위젯 배치 상수 (drawTimerBar / layoutToolbar 공용)
+  private static readonly TB_BTN_W = 44;
+  private static readonly TB_GAP = 4;
+  private static readonly TB_EDGE = 8;
+  private static readonly TB_PAD = 8; // 버튼과 타이머바 사이 여백
+
   private layoutToolbar(layout: Layout): void {
     const h = layout.toolbarH - 12;
     const y = 6;
-    const btnW = 44;
-    const gap = 4;
+    const btnW = GameScene.TB_BTN_W;
+    const gap = GameScene.TB_GAP;
+    const edge = GameScene.TB_EDGE;
     // 좌측: ◀, 우측: 💡 ⏸ 🔊 ↺
-    this.btnBack.setBounds({ x: 8, y, w: btnW, h });
-    this.btnReset.setBounds({ x: layout.width - 8 - btnW, y, w: btnW, h });
+    this.btnBack.setBounds({ x: edge, y, w: btnW, h });
+    this.btnReset.setBounds({ x: layout.width - edge - btnW, y, w: btnW, h });
     this.btnMute.setBounds({
-      x: layout.width - 8 - btnW * 2 - gap,
+      x: layout.width - edge - btnW * 2 - gap,
       y,
       w: btnW,
       h,
     });
     this.btnPause.setBounds({
-      x: layout.width - 8 - btnW * 3 - gap * 2,
+      x: layout.width - edge - btnW * 3 - gap * 2,
       y,
       w: btnW,
       h,
     });
     this.btnHint.setBounds({
-      x: layout.width - 8 - btnW * 4 - gap * 3,
+      x: layout.width - edge - btnW * 4 - gap * 3,
       y,
       w: btnW,
       h,
@@ -215,7 +222,8 @@ export class GameScene implements Scene {
     const title = this.cleared
       ? `🎉 ${this.level.name}`
       : `${this.level.name}`;
-    ctx.fillText(title, layout.width / 2, layout.toolbarH / 2 - 14);
+    // 좌/우 버튼 사이 가용 영역의 중심에 정렬 (우측 버튼이 4개라 비대칭).
+    ctx.fillText(title, this.toolbarMidX(layout), layout.toolbarH / 2 - 14);
     ctx.restore();
 
     this.drawTimerBar(ctx, layout);
@@ -257,12 +265,26 @@ export class GameScene implements Scene {
     this.timeOutModal.draw(ctx, layout.width, layout.height);
   }
 
+  /** 좌/우 버튼 사이 가용 영역의 중심 X. */
+  private toolbarMidX(layout: Layout): number {
+    const { TB_BTN_W: btnW, TB_GAP: gap, TB_EDGE: edge, TB_PAD: pad } = GameScene;
+    const leftEdge = edge + btnW + pad;
+    const rightEdge = layout.width - edge - btnW * 4 - gap * 3 - pad;
+    return (leftEdge + rightEdge) / 2;
+  }
+
   private drawTimerBar(ctx: CanvasRenderingContext2D, layout: Layout): void {
     const remaining = Math.max(0, this.timeLimitSec - this.elapsedSec);
     const frac = Math.max(0, Math.min(1, remaining / this.timeLimitSec));
-    const barW = Math.min(560, layout.width - 32);
+    // 좌/우 버튼 영역을 침범하지 않도록 가용 폭으로 제한.
+    const { TB_BTN_W: btnW, TB_GAP: gap, TB_EDGE: edge, TB_PAD: pad } = GameScene;
+    const leftEdge = edge + btnW + pad;
+    const rightEdge = layout.width - edge - btnW * 4 - gap * 3 - pad;
+    const available = Math.max(40, rightEdge - leftEdge);
+    const barW = Math.min(560, available);
     const barH = 15;
-    const bx = (layout.width - barW) / 2;
+    const center = (leftEdge + rightEdge) / 2;
+    const bx = center - barW / 2;
     const by = layout.toolbarH / 2 - 2;
 
     ctx.save();
