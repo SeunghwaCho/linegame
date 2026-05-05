@@ -17,7 +17,7 @@ import type { Level, LevelTemplate, Variant, LevelDot } from "./types.ts";
 import { enumerateCompatibleSets } from "./colorConstraint.ts";
 
 const PALETTE_SIZE = 8;
-const CIRCLE_BOUNDARY_TOL = 0.5; // loader.ts와 동일 — 검증 실패 회피
+const VARIANT_BOUNDARY_TOL = 0.5; // loader.ts CIRCLE_BOUNDARY_TOL과 동일 의미 — 번들 시 const 충돌 회피용 별칭
 
 export interface VariantParams {
   variantIdx: number;
@@ -161,7 +161,7 @@ export function applyVariant(v: Variant, opts: ApplyOptions): Variant {
     // disk 경계 dot은 각도 재구성으로 보정
     if (v.circle) {
       const dist = Math.hypot(d.x - v.circle.cx, d.y - v.circle.cy);
-      if (Math.abs(dist - v.circle.r) <= CIRCLE_BOUNDARY_TOL) {
+      if (Math.abs(dist - v.circle.r) <= VARIANT_BOUNDARY_TOL) {
         // 원래 각도 + 회전각으로 boundary 위 점을 정확히 구성
         const ang0 = Math.atan2(d.y - v.circle.cy, d.x - v.circle.cx);
         const ang1 = ang0 + theta;
