@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { parseLevelPack } from "../src/level/loader.ts";
 import { isSolvable } from "../src/level/solver.ts";
 import { isCompatibleColorSet } from "../src/level/colorConstraint.ts";
+import { isTriviallySolvable } from "../src/level/trivialCheck.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const sampleJson = readFileSync(join(here, "..", "data", "levels.json"), "utf8");
@@ -27,4 +28,14 @@ for (const lv of pack.levels) {
       `unsolvable: dots=${JSON.stringify(lv.dots)}`,
     );
   });
+
+  if (lv.id >= 3) {
+    test(`레벨 ${lv.id}: 직선 단순 풀이 차단 (CLAUDE.md §8)`, () => {
+      assert.equal(
+        isTriviallySolvable(lv),
+        false,
+        `직선 풀이 가능: dots=${JSON.stringify(lv.dots)}`,
+      );
+    });
+  }
 }
