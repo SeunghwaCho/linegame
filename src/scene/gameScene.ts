@@ -6,7 +6,7 @@ import { Board } from "../game/board.ts";
 import { toGameDots } from "../level/loader.ts";
 import { Renderer } from "./renderer.ts";
 import { Effects } from "./effects.ts";
-import { Button } from "../ui/button.ts";
+import { Button, roundRect } from "../ui/button.ts";
 import { Modal } from "../ui/modal.ts";
 import { nextHint, type HintResult } from "../game/hint.ts";
 import { computeStars } from "../game/stars.ts";
@@ -19,6 +19,21 @@ function formatTime(sec: number): string {
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
+
+// 색당 20초의 제한시간, 최소 60초.
+function computeTimeLimit(numColors: number): number {
+  return Math.max(60, numColors * 20);
+}
+
+const RAINBOW_STOPS = [
+  "#ff3b30",
+  "#ff9500",
+  "#ffcc00",
+  "#34c759",
+  "#00c7be",
+  "#007aff",
+  "#af52de",
+];
 
 /**
  * 한 레벨 플레이 화면.
@@ -41,10 +56,13 @@ export class GameScene implements Scene {
   private readonly btnPause: Button;
   private readonly btnReset: Button;
   private readonly resetModal: Modal;
+  private readonly timeOutModal: Modal;
 
   private cleared = false;
   private paused = false;
+  private gameOver = false;
   private elapsedSec = 0;
+  private readonly timeLimitSec: number;
   private rejectCount = 0;
   private hintActive: HintResult | null = null;
   private hintAge = 0;
@@ -108,8 +126,18 @@ export class GameScene implements Scene {
         { label: "다시 시작", onSelect: () => this.resetBoard(), primary: true },
       ],
     );
+    this.timeOutModal = new Modal(
+      "⏰ 시간 초과",
+      "제한 시간 안에 풀지 못했습니다.",
+      [
+        { label: "메뉴", onSelect: () => this.gotoMenu() },
+        { label: "다시 시작", onSelect: () => this.resetBoard(), primary: true },
+      ],
+    );
     this.btnMute.active = c.sound.isMuted();
     this.btnMute.label = c.sound.isMuted() ? "🔇" : "🔊";
+    const numColors = new Set(level.dots.map((d) => d.colorId)).size;
+    this.timeLimitSec = computeTimeLimit(numColors);
   }
 
   enter(): void {
@@ -119,9 +147,25 @@ export class GameScene implements Scene {
   update(dt: number, layout: Layout): void {
     this.layoutToolbar(layout);
     this.resetModal.setLayout(layout.width, layout.height);
+    this.timeOutModal.setLayout(layout.width, layout.height);
     this.effects.update(dt);
     this.hintAge += dt;
-    if (!this.paused && !this.cleared) this.elapsedSec += dt;
+    if (!this.paused && !this.cleared && !this.gameOver) {
+      this.elapsedSec += dt;
+      if (this.elapsedSec >= this.timeLimitSec) {
+        this.elapsedSec = this.timeLimitSec;
+        this.triggerGameOver();
+      }
+    }
+  }
+
+  private triggerGameOver(): void {
+    if (this.gameOver) return;
+    this.gameOver = true;
+    this.board.endPath();
+    this.cancelLongPress();
+    this.ctx.sound.playReject();
+    this.timeOutModal.show();
   }
 
   private layoutToolbar(layout: Layout): void {
@@ -163,7 +207,7 @@ export class GameScene implements Scene {
     ctx.lineTo(layout.width, layout.toolbarH);
     ctx.stroke();
 
-    // 레벨 이름 (가운데, 적당한 폭에 맞춤) + 타이머
+    // 레벨 이름 (가운데, 적당한 폭에 맞춤) + 무지개 시간바
     ctx.fillStyle = "#222";
     ctx.font = "600 15px -apple-system, system-ui, sans-serif";
     ctx.textAlign = "center";
@@ -171,16 +215,10 @@ export class GameScene implements Scene {
     const title = this.cleared
       ? `🎉 ${this.level.name}`
       : `${this.level.name}`;
-    ctx.fillText(title, layout.width / 2, layout.toolbarH / 2 - 8);
-
-    ctx.fillStyle = "#666";
-    ctx.font = "12px -apple-system, system-ui, sans-serif";
-    ctx.fillText(
-      `${formatTime(this.elapsedSec)}${this.paused ? " (일시정지)" : ""}`,
-      layout.width / 2,
-      layout.toolbarH / 2 + 10,
-    );
+    ctx.fillText(title, layout.width / 2, layout.toolbarH / 2 - 14);
     ctx.restore();
+
+    this.drawTimerBar(ctx, layout);
 
     // 보드 — boardRect 안에 letterbox
     this.drawBoard(ctx, layout);
@@ -216,6 +254,64 @@ export class GameScene implements Scene {
 
     // 모달
     this.resetModal.draw(ctx, layout.width, layout.height);
+    this.timeOutModal.draw(ctx, layout.width, layout.height);
+  }
+
+  private drawTimerBar(ctx: CanvasRenderingContext2D, layout: Layout): void {
+    const remaining = Math.max(0, this.timeLimitSec - this.elapsedSec);
+    const frac = Math.max(0, Math.min(1, remaining / this.timeLimitSec));
+    const barW = Math.min(560, layout.width - 32);
+    const barH = 15;
+    const bx = (layout.width - barW) / 2;
+    const by = layout.toolbarH / 2 - 2;
+
+    ctx.save();
+    // 배경(트랙)
+    ctx.fillStyle = "#eeeeee";
+    ctx.strokeStyle = "#cfcfcf";
+    ctx.lineWidth = 1;
+    roundRect(ctx, bx + 0.5, by + 0.5, barW - 1, barH - 1, barH / 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 무지개 채움(remaining)
+    const fillW = (barW - 2) * frac;
+    if (fillW > 0.5) {
+      const grad = ctx.createLinearGradient(bx, 0, bx + barW - 2, 0);
+      for (let i = 0; i < RAINBOW_STOPS.length; i++) {
+        grad.addColorStop(i / (RAINBOW_STOPS.length - 1), RAINBOW_STOPS[i]!);
+      }
+      ctx.save();
+      roundRect(ctx, bx + 1, by + 1, barW - 2, barH - 2, (barH - 2) / 2);
+      ctx.clip();
+      ctx.fillStyle = grad;
+      ctx.fillRect(bx + 1, by + 1, fillW, barH - 2);
+      ctx.restore();
+    }
+
+    // 잔여 시간 < 10초 또는 10% 미만이면 점멸 강조
+    const lowTime = remaining <= 10 || frac < 0.1;
+    if (lowTime && !this.cleared && !this.gameOver) {
+      const pulse = 0.5 + 0.5 * Math.sin(this.elapsedSec * 8);
+      ctx.globalAlpha = 0.3 + 0.5 * pulse;
+      ctx.strokeStyle = "#ff3b30";
+      ctx.lineWidth = 2;
+      roundRect(ctx, bx, by, barW, barH, barH / 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // 잔여 시간 텍스트(작게, 바 우측)
+    ctx.fillStyle = this.paused ? "#999" : "#666";
+    ctx.font = "11px -apple-system, system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.fillText(
+      this.paused ? "일시정지" : formatTime(remaining),
+      bx + barW,
+      by + barH + 2,
+    );
+    ctx.restore();
   }
 
   /**
@@ -283,6 +379,10 @@ export class GameScene implements Scene {
   }
 
   onDown(cssX: number, cssY: number): void {
+    if (this.timeOutModal.visible) {
+      this.timeOutModal.onDown(cssX, cssY);
+      return;
+    }
     if (this.resetModal.visible) {
       this.resetModal.onDown(cssX, cssY);
       return;
@@ -294,7 +394,7 @@ export class GameScene implements Scene {
     if (this.btnMute.onDown(cssX, cssY)) return;
     if (this.btnReset.onDown(cssX, cssY)) return;
 
-    if (this.cleared || this.paused) return;
+    if (this.cleared || this.paused || this.gameOver) return;
     const layout = this.ctx.app.getLayout();
     if (!this.inBoard(cssX, cssY, layout)) return;
 
@@ -320,8 +420,9 @@ export class GameScene implements Scene {
     this.btnMute.onMove(cssX, cssY);
     this.btnReset.onMove(cssX, cssY);
     this.resetModal.onMove(cssX, cssY);
+    this.timeOutModal.onMove(cssX, cssY);
 
-    if (this.cleared || this.paused) return;
+    if (this.cleared || this.paused || this.gameOver) return;
 
     // 롱프레스 도중 일정 거리 이상 움직이면 취소
     if (this.longPressStart) {
@@ -344,6 +445,10 @@ export class GameScene implements Scene {
   }
 
   onUp(cssX: number, cssY: number): void {
+    if (this.timeOutModal.visible) {
+      this.timeOutModal.onUp(cssX, cssY);
+      return;
+    }
     if (this.resetModal.visible) {
       this.resetModal.onUp(cssX, cssY);
       return;
@@ -384,6 +489,8 @@ export class GameScene implements Scene {
   private resetBoard(): void {
     this.board.reset();
     this.cleared = false;
+    this.gameOver = false;
+    this.timeOutModal.hide();
     this.hintActive = null;
     this.elapsedSec = 0;
     this.rejectCount = 0;
@@ -393,7 +500,7 @@ export class GameScene implements Scene {
   }
 
   private togglePause(): void {
-    if (this.cleared) return;
+    if (this.cleared || this.gameOver) return;
     this.paused = !this.paused;
     this.btnPause.label = this.paused ? "▶" : "⏸";
     this.btnPause.active = this.paused;

@@ -217,3 +217,24 @@ CLAUDE.md 신규 규칙:
   - `onUp` 에서 잠금 셀 탭 → `playReject` (피드백), 잠금 해제 셀만 GameScene 전환.
 
 **검증**: 976/976 테스트 통과, 빌드 OK (dist.js 92KB).
+
+## 2026-05-05 — 무지개 시간바 + 제한시간 게임오버
+
+**의도**: 타이머가 단순히 증가만 하는 정적인 카운터였음. 시간 제한 + 시각적 압박감을 도입해 긴장감 있는 플레이로 전환.
+
+**규칙**:
+- 제한시간: `max(60, numColors × 20)` 초. 5색 → 100초, 11색 → 220초.
+- 무지개 그라디언트 바(빨→주→노→초→청→파→보)가 잔여 시간 비율로 채워짐. 바는 줄어들고, 잔여 ≤ 10초이거나 < 10%일 때 빨간 테두리 점멸.
+- 제한시간 초과 시 게임오버 모달 ("⏰ 시간 초과") + `playReject` 사운드. 보드 입력 차단.
+- 모달 액션: **메뉴** / **다시 시작**. 다시 시작 시 `elapsedSec=0`, `gameOver=false`, 보드 초기화.
+
+**구현**:
+- `src/scene/gameScene.ts`:
+  - `computeTimeLimit(numColors)` + `RAINBOW_STOPS` 상수 추가.
+  - 생성자에서 `timeLimitSec` 계산, `timeOutModal` 인스턴스화.
+  - `update()`에서 `elapsedSec >= timeLimitSec` → `triggerGameOver()` (board 정리, 모달 표시).
+  - `drawTimerBar()` — 트랙 + 그라디언트 클리핑 채움 + 점멸 강조 + 잔여시간 텍스트.
+  - 입력 핸들러에 `timeOutModal.onDown/onMove/onUp` 추가, `gameOver` 시 보드 입력/일시정지 차단.
+  - `resetBoard()`에서 `gameOver`/모달 초기화.
+
+**검증**: 976/976 테스트 통과, 빌드 OK (dist.js 96KB).
