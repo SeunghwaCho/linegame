@@ -51,34 +51,31 @@ interface DifficultyConfig {
 }
 
 function difficultyOf(id: number): DifficultyConfig {
-  // 색 수: 단조 비감소 step. 6-7→3, 8-9→4, 10-14→5, 15-24→6, 25+→7
+  // 색 수: 6 부터 빠르게 max(7) 도달. 6→6, 8→7, 10+→7.
   let numColors: number;
-  if (id <= 7) numColors = 3;
-  else if (id <= 9) numColors = 4;
-  else if (id <= 14) numColors = 5;
-  else if (id <= 24) numColors = 6;
+  if (id <= 7) numColors = 6;
   else numColors = 7;
 
-  // 25+ 는 색이 이미 max(7)이므로 길이·셀 크기로 난이도 차별화
+  // 색이 max 인 구간이 길어 — 길이·셀 크기로 난이도 차별화
   let cellSize: number;
   let minLen: number;
   let maxLen: number;
   if (id <= 15) {
-    cellSize = 28;
-    minLen = 8;
-    maxLen = 13;
+    cellSize = 24;
+    minLen = 12;
+    maxLen = 17;
   } else if (id <= 35) {
-    cellSize = 25;
-    minLen = 11;
-    maxLen = 16;
-  } else if (id <= 60) {
     cellSize = 22;
-    minLen = 14;
-    maxLen = 19;
-  } else {
+    minLen = 15;
+    maxLen = 20;
+  } else if (id <= 60) {
     cellSize = 20;
-    minLen = 16;
-    maxLen = 22;
+    minLen = 18;
+    maxLen = 23;
+  } else {
+    cellSize = 19;
+    minLen = 20;
+    maxLen = 25;
   }
   return { numColors, cellSize, minLen, maxLen };
 }
@@ -320,7 +317,7 @@ function snapAndValidate(
   return { dots, paths: r.paths, circle };
 }
 
-const CIRCLE_MAX_RETRIES = 600;
+const CIRCLE_MAX_RETRIES = 2000;
 
 function genCircleVariant(id: number, varIdx: number): Variant {
   const cfg = difficultyOf(id);
@@ -369,7 +366,6 @@ function genCircleVariant(id: number, varIdx: number): Variant {
     if (!snapped) continue;
 
     const variant: Variant = { dots: snapped.dots, circle };
-    // 검증: variant를 임시 Level로 변환하여 trivial / solvable 검사
     const tmpLevel: Level = {
       id,
       name: "tmp",
@@ -379,6 +375,8 @@ function genCircleVariant(id: number, varIdx: number): Variant {
       circle: variant.circle,
     };
     if (isTriviallySolvable(tmpLevel)) continue;
+    // path 자체가 해여도, 다른 색을 둘러싸 isolation 발생 가능 — 휴리스틱 solver 로 한 번 더 확인
+    if (!isSolvable(tmpLevel, { cellSize: 12, maxAttempts: 80 })) continue;
     return variant;
   }
   throw new Error(`레벨 ${id} variant ${varIdx}: 원형 puzzle 생성 실패`);
