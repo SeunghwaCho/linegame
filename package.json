@@ -1,0 +1,25 @@
+{
+  "name": "linegame",
+  "version": "0.1.0",
+  "description": "선잇기 2D 퍼즐 (외부 라이브러리 0개, TypeScript + HTML5 Canvas)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "build": "bash build.sh",
+    "build:tsc": "tsc -p tsconfig.build.json",
+    "bundle": "node --experimental-strip-types tools/bundle.ts",
+    "release": "node --experimental-strip-types tools/release.ts",
+    "generate-levels": "node --experimental-strip-types tools/generate-levels.ts",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "serve": "python -m http.server 8001",
+    "serve:release": "cd release && python -m http.server 8001"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

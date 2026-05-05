@@ -7,12 +7,12 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo [1/4] 타입 체크
-call tsc --noEmit
+call npx tsc --noEmit
 if errorlevel 1 goto :err
 
 echo [2/4] tsc 빌드 → build\
 if exist build rmdir /s /q build
-call tsc -p tsconfig.build.json
+call npx tsc -p tsconfig.build.json
 if errorlevel 1 goto :err
 
 echo [3/4] 번들 → release\dist.js

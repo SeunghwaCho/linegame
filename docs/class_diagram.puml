@@ -1,0 +1,122 @@
+@startuml class_diagram
+title 선잇기 퍼즐 — 핵심 클래스 관계
+
+package geometry {
+  class SpatialHash {
+    -grid: Map<cell, Set<id>>
+    -segs: Map<id, StoredSegment>
+    -cellsOf: Map<id, cells>
+    +insert(pathId, seg) : id
+    +remove(id)
+    +removePath(pathId)
+    +query(seg) : StoredSegment[]
+    +clear()
+  }
+  class intersection <<module>> {
+    +ccw()
+    +segmentsIntersect()
+    +pointSegDistance()
+    +closestPointOnSegment()
+  }
+}
+
+package game {
+  class Board {
+    -dots, hash, finalized
+    +startPath(dotId)
+    +updatePath(p)
+    +endPath()
+    +isCleared() : boolean
+    +findDotAt(p) : Dot
+    +reset()
+  }
+  class PathBuilder {
+    -segments, tip, finalized
+    +onPointerMove(p) : MoveResult
+    +cancel()
+  }
+  class Dot {
+    +id, colorId, center, radius
+  }
+  class FinalizedPath {
+    +pathId, colorId
+    +startDotId, endDotId
+    +segments, segmentIds
+  }
+  class Hint <<module>> {
+    +nextHint(board) : HintResult
+  }
+}
+
+package level {
+  class Level {
+    +id, name, width, height
+    +dots: LevelDot[]
+  }
+  class LevelLoader <<module>> {
+    +parseLevelPack(json)
+    +toGameDots(level)
+  }
+}
+
+package scene {
+  class Renderer {
+    -ctx, scale, offset
+    +resize(cssW, cssH, dpr)
+    +screenToWorld(x, y)
+    +draw(board)
+    +getContext()
+  }
+  class InputHandler {
+    +onDown / onMove / onUp
+  }
+  class GameScene {
+    -board, renderer, input
+    -sound, effects
+    +start() / stop() / reset()
+    +fitToContainer()
+    +showHint()
+  }
+  class Effects {
+    +burst() / clearBurst()
+    +update(dt) / draw(ctx)
+  }
+}
+
+package audio {
+  class Sound {
+    +ensureCtx()
+    +playStart() / playFinalize()
+    +playReject() / playClear()
+    +setMuted() / isMuted()
+  }
+}
+
+package storage {
+  class Persistence {
+    +init()
+    +getCompletedLevels() / markCompleted()
+    +getLastLevelId() / setLastLevelId()
+    +getMuted() / setMuted()
+  }
+}
+
+Board *-- "0..1" PathBuilder
+Board o-- "*" Dot
+Board o-- "*" FinalizedPath
+Board --> SpatialHash
+PathBuilder --> SpatialHash
+PathBuilder ..> intersection
+SpatialHash ..> intersection : (none, 단순 인덱스)
+
+GameScene --> Board
+GameScene --> Renderer
+GameScene --> InputHandler
+GameScene --> Sound
+GameScene --> Effects
+GameScene ..> Hint
+
+LevelLoader ..> Level
+GameScene ..> LevelLoader
+
+@enduml

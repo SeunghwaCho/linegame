@@ -25,6 +25,9 @@
 - 실행시 외부 라이브러리 참조가 있으면 안됨
 - HTML5 Canvas 기반으로 구현
 - `python -m http.server 8001` 로 동작 가능해야 함
+- **모든 게임 UI는 Canvas 안에서 그릴 것.** 메뉴/레벨 선택/버튼(힌트·뮤트·리셋·일시정지·다시하기·다음)/모달(컨펌·결과)/상태 텍스트 등 모든 인터랙션 요소를 HTML 요소(`<button>`/`<select>`/`<span>`/`window.confirm` 등) 대신 Canvas 위에 직접 렌더링하고 Canvas 좌표 기반 hit-test로 입력 처리.
+  - 예외(허용): 페이지 골격(`<html>`/`<head>`/`<body>`/`<canvas>` 태그 자체), 메타 태그, 단일 `<style>` 블록(폰트/배경 등), 문서 타이틀.
+  - 이유: 폴더블/모바일 일관 UX, 풀스크린 / 회전 대응, native `confirm()` 의 거슬림 제거.
 
 ## 4. 이미지, 사운드 리소스
 - 이모지를 최대한 사용
@@ -57,8 +60,21 @@
 - 모바일 터치 UI(드래그로 선 긋기) 완벽 지원
 - 폴더7 펼침 화면, 닫힌 화면 모두 지원
 - 폴더7 펼침 화면에서 Canvas가 고해상도로 선명하게 보이도록 할 것
+- **폴더블 렌더링 정책 (nemonemo 기법 참고)**:
+  - Canvas는 viewport 전체(`html, body { width:100%; height:100%; overflow:hidden; }`, `canvas { display:block; width:100%; height:100%; }`).
+  - DPR 적용: `canvas.width = cssW * dpr`, `canvas.height = cssH * dpr`, `ctx.setTransform(dpr,0,0,dpr,0,0)`.
+  - **레이아웃 계산은 매 프레임 수행** (게임 좌표계 → 화면 좌표계 변환을 매번 갱신). resize 이벤트 누락이나 폴더 전환 타이밍 차이에도 견고.
+  - 입력 이벤트는 `canvas.getBoundingClientRect()` 로 변환.
+  - 리스너: `window.resize` + `window.orientationchange`(폴더 회전 시 100ms 지연 후 처리). `visualViewport.resize` 도 추가 권장.
+  - 모든 위젯/버튼/모달은 매 프레임 레이아웃 결과로 위치 재계산 → 접힘/펼침 사이 깨지지 않음.
 - 게임은 1-100 레벨 맵을 지원해야 함
 - 맵은 JSON 형식으로 수정과 추가가 쉬워야 함
+- **풀 수 없는(unsolvable) 레벨은 절대 생성/포함 금지.** 자동 생성기는 반드시 solvability 검증을 통과한 레벨만 `data/levels.json` 에 기록할 것. 검증 실패 시 해당 시드를 버리고 재생성하거나, 횟수 초과 시 빌드 실패 처리.
+- **적녹색약(red-green color blindness) 배려: 적색과 녹색 계열은 같은 레벨에 동시 등장 금지.**
+  - 현재 팔레트(`src/scene/colors.ts`) 기준: 적색 = colorId 0(red `#e63946`), 녹색 계열 = colorId 2(teal `#2a9d8f`), colorId 5(mint `#06d6a0`).
+  - 한 레벨의 색 집합이 `{0}` 과 `{2, 5}` 양쪽에서 동시에 원소를 가지면 안 됨.
+  - 자동 생성기는 색 선택 시 이 제약을 확인하고, 위반하면 다른 색으로 교체. 수동 레벨도 lint 단계에서 같은 검사.
+  - 팔레트 수정 시 이 분류표(적색군 / 녹색군)를 반드시 함께 갱신할 것.
 - 사용자의 진행 상황은 Browser의 IndexedDB에 저장해서 이어하기 가능해야 함
 - 다시 하기를 할 경우 사용자 컨펌 후 진행해야 함
 

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# 개발 편의 실행기.
+#   ./run            → tsc 1회 빌드 + 정적 서버 (default)
+#   ./run watch      → tsc --watch (백그라운드) + 정적 서버
+#   ./run test       → 전체 테스트
+#   ./run build      → 풀 빌드 (release/dist.js)
+#   ./run gen        → 레벨 100개 재생성
+set -euo pipefail
+cd "$(dirname "$0")"
+
+cmd="${1:-dev}"
+
+case "$cmd" in
+  dev)
+    echo "[run] tsc 빌드"
+    npx tsc -p tsconfig.build.json
+    echo "[run] http://localhost:8001 ▶ Ctrl+C 로 종료"
+    exec python -m http.server 8001
+    ;;
+  watch)
+    echo "[run] tsc --watch 백그라운드 시작"
+    npx tsc -p tsconfig.build.json --watch &
+    tsc_pid=$!
+    trap "kill $tsc_pid 2>/dev/null || true" EXIT INT TERM
+    sleep 1
+    echo "[run] http://localhost:8001"
+    python -m http.server 8001
+    ;;
+  test)
+    exec node --experimental-strip-types --test tests/*.test.ts
+    ;;
+  build)
+    exec bash build.sh
+    ;;
+  gen)
+    exec node --experimental-strip-types tools/generate-levels.ts
+    ;;
+  *)
+    echo "사용법: ./run [dev|watch|test|build|gen]"
+    exit 1
+    ;;
+esac

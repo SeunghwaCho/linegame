@@ -5,11 +5,11 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 echo "[1/4] 타입 체크"
-tsc --noEmit
+npx tsc --noEmit
 
 echo "[2/4] tsc 빌드 → build/"
 rm -rf build
-tsc -p tsconfig.build.json
+npx tsc -p tsconfig.build.json
 
 echo "[3/4] 번들 → release/dist.js"
 rm -rf release

@@ -1,114 +1,54 @@
 import { parseLevelPack } from "./level/loader.ts";
-import type { LevelPack } from "./level/types.ts";
-import { GameScene } from "./scene/game.ts";
 import { Sound } from "./audio/sound.ts";
 import { Persistence } from "./storage/persistence.ts";
+import { App } from "./scene/app.ts";
+import { MenuScene } from "./scene/menuScene.ts";
+import { GameScene } from "./scene/gameScene.ts";
+import { ResultScene } from "./scene/resultScene.ts";
+import { sceneRegistry } from "./scene/registry.ts";
+import type { SceneContext } from "./scene/context.ts";
 
-async function loadLevels(): Promise<LevelPack> {
-  const res = await fetch("./data/levels.json");
-  if (!res.ok) throw new Error(`failed to load levels: ${res.status}`);
-  const text = await res.text();
-  return parseLevelPack(text);
-}
-
-function $(id: string): HTMLElement {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`element #${id} not found`);
-  return el;
-}
+// 순환 import 방지용 레지스트리 등록 (모듈 로드 직후 1회).
+sceneRegistry.menu = (ctx) => new MenuScene(ctx);
+sceneRegistry.game = (ctx, lv) => new GameScene(ctx, lv);
+sceneRegistry.result = (ctx, args) => new ResultScene(ctx, args);
 
 async function main(): Promise<void> {
-  const pack = await loadLevels();
-  const canvas = $("game-canvas") as HTMLCanvasElement;
-  const levelSelect = $("level-select") as HTMLSelectElement;
-  const resetBtn = $("reset-btn") as HTMLButtonElement;
-  const hintBtn = $("hint-btn") as HTMLButtonElement;
-  const muteBtn = $("mute-btn") as HTMLButtonElement;
-  const status = $("status");
+  const canvas = document.getElementById("game-canvas") as HTMLCanvasElement | null;
+  if (!canvas) throw new Error("#game-canvas not found");
+
+  const res = await fetch("./data/levels.json");
+  if (!res.ok) throw new Error(`failed to load levels: ${res.status}`);
+  const pack = parseLevelPack(await res.text());
 
   const sound = new Sound();
   const persistence = new Persistence();
   await persistence.init();
 
-  // 옵션 채우기 + 클리어 표시 (✓)
-  const completed = await persistence.getCompletedLevels();
-  for (const lv of pack.levels) {
-    const opt = document.createElement("option");
-    opt.value = String(lv.id);
-    opt.textContent = `${completed.has(lv.id) ? "✓ " : ""}${lv.id}. ${lv.name}`;
-    levelSelect.appendChild(opt);
-  }
-
-  // 마지막 진행 레벨 복원 (없으면 1)
-  const lastLevel = (await persistence.getLastLevelId()) ?? pack.levels[0]!.id;
-  levelSelect.value = String(lastLevel);
-
-  // 뮤트 상태 복원
+  // 뮤트 옵션 복원
   const muted = (await persistence.getMuted()) ?? false;
   sound.setMuted(muted);
-  updateMuteLabel();
 
-  let scene: GameScene | null = null;
+  const app = new App(canvas);
+  const ctx: SceneContext = { app, pack, persistence, sound };
 
-  function updateMuteLabel(): void {
-    muteBtn.textContent = sound.isMuted() ? "🔇" : "🔊";
-  }
-
-  async function refreshLevelOptions(): Promise<void> {
-    const set = await persistence.getCompletedLevels();
-    for (const opt of Array.from(levelSelect.options)) {
-      const id = Number(opt.value);
-      const lv = pack.levels.find((l) => l.id === id);
-      if (!lv) continue;
-      opt.textContent = `${set.has(id) ? "✓ " : ""}${id}. ${lv.name}`;
+  // 마지막으로 열었던 레벨이 있으면 바로 그 게임으로, 아니면 메뉴.
+  const lastLevelId = await persistence.getLastLevelId();
+  if (lastLevelId !== undefined) {
+    const lv = pack.levels.find((l) => l.id === lastLevelId);
+    if (lv) {
+      app.setScene(new GameScene(ctx, lv));
+      app.start();
+      return;
     }
   }
-
-  function startLevel(levelId: number): void {
-    if (scene) scene.stop();
-    const lv = pack.levels.find((l) => l.id === levelId);
-    if (!lv) return;
-    scene = new GameScene(canvas, lv, sound);
-    scene.setOnClear(() => {
-      status.textContent = `🎉 ${lv.name} 클리어!`;
-      void persistence.markCompleted(lv.id);
-      void refreshLevelOptions();
-    });
-    status.textContent = `${lv.name} — 같은 색을 이으세요`;
-    void persistence.setLastLevelId(lv.id);
-    scene.start();
-  }
-
-  levelSelect.addEventListener("change", () => {
-    startLevel(Number(levelSelect.value));
-  });
-
-  resetBtn.addEventListener("click", () => {
-    if (!scene) return;
-    if (!window.confirm("정말 다시 시작하시겠습니까?")) return;
-    scene.reset();
-    status.textContent = "다시 시작 — 같은 색을 이으세요";
-  });
-
-  hintBtn.addEventListener("click", () => {
-    scene?.showHint();
-  });
-
-  muteBtn.addEventListener("click", () => {
-    sound.setMuted(!sound.isMuted());
-    updateMuteLabel();
-    void persistence.setMuted(sound.isMuted());
-  });
-
-  window.addEventListener("resize", () => {
-    scene?.fitToContainer();
-  });
-
-  startLevel(lastLevel);
+  app.setScene(new MenuScene(ctx));
+  app.start();
 }
 
 main().catch((err: unknown) => {
   console.error(err);
-  const status = document.getElementById("status");
-  if (status) status.textContent = `오류: ${(err as Error).message}`;
+  // 부팅 실패는 화면에 alert로 알림 (canvas UI 부팅 전이라 native 사용)
+  const message = err instanceof Error ? err.message : String(err);
+  document.body.innerHTML = `<pre style="padding:16px;font:14px monospace;color:#a00;">부팅 실패: ${message}</pre>`;
 });

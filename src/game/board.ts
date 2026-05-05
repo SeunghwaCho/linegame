@@ -2,6 +2,7 @@ import type { Point, Segment } from "../geometry/types.ts";
 import { SpatialHash } from "../geometry/spatialHash.ts";
 import { PathBuilder } from "./path.ts";
 import type { Dot, MoveResult } from "./types.ts";
+import { pointSegDistance } from "../geometry/intersection.ts";
 
 export interface FinalizedPath {
   pathId: number;
@@ -144,6 +145,28 @@ export class Board {
     for (const c of colors) {
       if (!this.finalized.has(c)) return false;
     }
+    return true;
+  }
+
+  /**
+   * 좌표 p가 어떤 finalized path 위(허용오차 내)에 있는가?
+   * 첫 매치를 반환 (여러 path가 겹치면 임의).
+   */
+  findFinalizedPathAt(p: Point, tolerance: number): FinalizedPath | null {
+    for (const fp of this.finalized.values()) {
+      for (const seg of fp.segments) {
+        if (pointSegDistance(seg.a, seg.b, p) <= tolerance) return fp;
+      }
+    }
+    return null;
+  }
+
+  /** 색별 finalized path 제거 (장기 프레스로 다시 그리기용). */
+  removeFinalizedPath(colorId: number): boolean {
+    const fp = this.finalized.get(colorId);
+    if (!fp) return false;
+    for (const id of fp.segmentIds) this.hash.remove(id);
+    this.finalized.delete(colorId);
     return true;
   }
 

@@ -14,6 +14,7 @@ const STORE = "kv";
 const KEY_COMPLETED = "completedLevels";
 const KEY_LAST_LEVEL = "lastLevelId";
 const KEY_MUTED = "muted";
+const KEY_STARS = "bestStars"; // { [levelId]: stars }
 
 export class Persistence {
   private db: IDBDatabase | null = null;
@@ -109,6 +110,25 @@ export class Persistence {
 
   async setMuted(m: boolean): Promise<void> {
     await this.set(KEY_MUTED, m);
+  }
+
+  async getBestStars(): Promise<Map<number, number>> {
+    const obj = (await this.get<Record<string, number>>(KEY_STARS)) ?? {};
+    const m = new Map<number, number>();
+    for (const [k, v] of Object.entries(obj)) m.set(Number(k), v);
+    return m;
+  }
+
+  /** 더 좋은(=많은) 별 수일 때만 갱신. 반환값 = 새로 갱신되었는지. */
+  async recordStars(levelId: number, stars: number): Promise<boolean> {
+    const map = await this.getBestStars();
+    const prev = map.get(levelId) ?? 0;
+    if (stars <= prev) return false;
+    map.set(levelId, stars);
+    const obj: Record<string, number> = {};
+    for (const [k, v] of map) obj[String(k)] = v;
+    await this.set(KEY_STARS, obj);
+    return true;
   }
 
   /** 테스트/디버그용: 메모리 fallback 강제 */

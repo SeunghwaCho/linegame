@@ -1,0 +1,75 @@
+@startuml sequence_diagram
+title 선잇기 퍼즐 — 드래그 한 프레임 처리 시퀀스
+
+actor 사용자
+participant "Canvas" as C
+participant "InputHandler" as I
+participant "GameScene" as G
+participant "Board" as B
+participant "PathBuilder" as P
+participant "SpatialHash" as H
+participant "Sound" as S
+
+== pointer down (dot 위) ==
+사용자 -> C : pointerdown(x, y)
+C -> I : pointerdown event
+I -> G : onDown(cssX, cssY)
+G -> S : ensureCtx()  (autoplay 우회)
+G -> G : screenToWorld → world(x, y)
+G -> B : findDotAt(world)
+B --> G : Dot
+G -> B : startPath(dot.id)
+B -> H : (기존 같은색 path 제거)
+B -> P : new PathBuilder(...)
+G -> S : playStart()
+
+== pointer move (드래그) ==
+사용자 -> C : pointermove(x, y)
+C -> I : pointermove event
+I -> G : onMove(cssX, cssY)
+G -> B : updatePath(world)
+B -> P : onPointerMove(p)
+
+note over P
+파이프라인:
+1) tryRewind() — 과거 세그먼트 근처면 pop 체이닝
+2) MIN_STEP 검사
+3) firstDotHit — foreign dot 통과 차단 / 같은 색이면 finalize
+4) crossesOtherPath — hash.query → 교차 검사
+5) crossesSelf — 직전 세그먼트 제외
+6) pushSegment + hash.insert
+end note
+
+P -> H : query(newSeg)
+H --> P : 후보들
+P -> P : 검사 통과 → push
+P -> H : insert(pathId, newSeg)
+P --> B : MoveResult { kind: extended }
+B --> G : MoveResult
+
+alt 같은 색 dot 도달
+  P --> B : MoveResult { kind: finalized, endDot }
+  B -> B : finalized.set(colorId, ...)
+  G -> S : playFinalize()
+  G -> B : isCleared() ?
+  B --> G : true / false
+  alt 클리어
+    G -> S : playClear()
+    G -> G : effects.clearBurst()
+    G -> G : onClear() callback
+  end
+end
+
+== pointer up ==
+사용자 -> C : pointerup
+C -> I : pointerup event
+I -> G : onUp()
+G -> B : endPath()  (finalize 안된 path는 cancel)
+
+== 매 프레임 ==
+G -> G : RAF loop
+G -> G : effects.update(dt)
+G -> "Renderer" : draw(board)
+G -> "Renderer" : effects.draw(ctx)
+
+@enduml

@@ -1,0 +1,40 @@
+@startuml state_diagram
+title 선잇기 퍼즐 — Scene 상태 전환
+
+[*] --> 부팅
+부팅 : 레벨 데이터 로드
+부팅 : Persistence init
+부팅 --> Menu : 로드 완료
+
+state Menu {
+  [*] --> 레벨선택
+  레벨선택 : 진행도 + ⭐ 표시
+  레벨선택 --> 레벨선택 : 페이지 이동
+}
+
+state Game {
+  [*] --> 진행중
+  진행중 : 드래그로 path 그리기
+  진행중 : 타이머 작동
+  진행중 --> 일시정지 : ⏸
+  일시정지 --> 진행중 : ▶
+  진행중 --> 진행중 : 힌트(💡)
+  진행중 --> 진행중 : 다시하기 컨펌 후 reset
+  진행중 --> 클리어판정 : 모든 색 연결
+  클리어판정 --> [*] : isCleared=true
+}
+
+state Result {
+  [*] --> 결과표시
+  결과표시 : ⭐ 1~3 + 시간
+  결과표시 --> [*] : 다음 / 메뉴 / 다시
+}
+
+Menu --> Game : 레벨 선택
+Game --> Result : 클리어
+Result --> Game : 다시
+Result --> Game : 다음 레벨
+Result --> Menu : 메뉴
+Game --> Menu : 메뉴 버튼
+
+@enduml

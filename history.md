@@ -81,11 +81,69 @@
 - `readme.md` — 한글, 빠른 시작 / 빌드 / 테스트 / 알고리즘 설명
 - `history.md` — 본 문서
 
-## 검증 요약
+## 검증 요약 (1라운드)
 
 - 단위 테스트: **62/62 통과**
-  - intersection 16, spatialHash 9, pathBuilder 12, levelLoader 6 (100레벨 검증 포함), board 11, hint 3, persistence 5
 - 타입 체크: `tsc --noEmit` strict, 0 errors
 - 빌드: `./build.sh` 성공 → release/dist.js 단일 산출물
 - 정적 호스팅: `python -m http.server` 로 200 OK 확인
 - 한계: 실제 드래그/터치 인터랙션은 CLI에서 검증 불가 — 브라우저 수동 확인 필요
+
+---
+
+## 2라운드 (nemonemo 비교 + CLAUDE.md 규칙 강화)
+
+CLAUDE.md 신규 규칙:
+- 풀 수 없는 레벨 생성 금지 (§8)
+- 적녹색약 배려: 적색 + 녹색군 동시 등장 금지 (§8)
+- 모든 게임 UI는 Canvas 안에서 (§3)
+- 폴더블 매 프레임 레이아웃 (§8)
+
+### 12. package.json / `run` 스크립트 / docs/
+- `package.json` (devDependency: typescript만, 런타임 0개)
+- `run` (dev/watch/test/build/gen)
+- `docs/state_diagram.puml`, `class_diagram.puml`, `sequence_diagram.puml` + PlantUML PNG 렌더
+
+### 13. 색약 제약 + Solver
+- `src/level/colorConstraint.ts` — RED_GROUP/GREEN_GROUP, isCompatibleColorSet, pickCompatibleColors
+  - capacity 기반 모드 선택(노렌/노그린)
+- `src/level/solver.ts` — 격자 BFS + 색 순서 무작위 백트래킹 (NP-complete 휴리스틱)
+- `tools/generate-levels.ts` 재작성:
+  - 1~5 수동 (색 ID 재배치로 색약 준수)
+  - 6~100 4단계 난이도 (easy/normal/hard/expert), interlock 비율 점진 증가
+  - 후보 생성 → solver 검증 → 통과만 채택 (MAX_RETRIES 200, 초과 시 throw)
+- `tests/levelsValid.test.ts` — 모든 100 레벨에 대해 색약 + solvability 동적 테스트 (200 케이스)
+
+### 14. 폴더블 매 프레임 레이아웃 (#30)
+- `Renderer.resize()` 변화 없으면 no-op
+- App.fitLayout() 매 프레임 호출 + dpr/cssW/cssH 캐시
+- `window.orientationchange`(100ms 지연) + `visualViewport.resize` 추가 리스닝
+
+### 15. Scene 상태머신 + Canvas UI (#27, #29)
+- `src/scene/scene.ts` — Scene 인터페이스
+- `src/scene/app.ts` — App (RAF + 입력 통합 + scene 관리, dpr-only ctx 변환)
+- `src/scene/registry.ts` — 순환 import 방지용 scene 팩토리 레지스트리
+- `src/scene/menuScene.ts` — 10×N 레벨 그리드 + 진행도/별 합계 표시
+- `src/scene/gameScene.ts` — 보드 + 툴바(◀💡⏸🔊↺) + 모달 + 일시정지 오버레이
+- `src/scene/resultScene.ts` — 별 표시 + 메뉴/다시/다음 + 자동 다음 레벨 카운트다운
+- `src/ui/button.ts`, `src/ui/modal.ts`, `src/ui/types.ts` — Canvas 위젯 + Modal
+- `index.html` 슬림화: header/HTML 버튼 모두 제거, `<canvas>` + `<style>` 만
+
+### 16. 타이머 + 일시정지 + 별 + 자동 다음 + 통계 + 롱프레스
+- `src/game/stars.ts` — 시간/거부 횟수/색 수 기반 별 1~3 계산
+- `Persistence.recordStars()` / `getBestStars()` — IndexedDB KV 확장
+- GameScene: elapsedSec 타이머, paused 토글, rejectCount 추적, 클리어 시 별 계산/저장
+- ResultScene: ★★★ 표시 + AUTO_NEXT_DELAY(5s) 카운트다운, 카드 외부 탭으로 취소
+- MenuScene: 셀에 미니어처 별, 툴바에 `★ M / 300` 합계
+- `Board.findFinalizedPathAt(p, tol)` + `removeFinalizedPath(colorId)`
+- GameScene: 롱프레스(450ms) 감지로 path 제거 (8px 이동 허용오차)
+
+## 최종 검증 요약
+
+- **단위 테스트: 284/284 통과**
+  - geometry 25, pathBuilder 12, board+longPress 15, levelLoader 6, hint 3, persistence 5, colorConstraint 6, solver 7, stars 5, **levelsValid 200**
+- **tsc strict: 0 errors**
+- **빌드: `npm run build` 성공** → release/dist.js (76KB), 21 모듈 IIFE 번들
+- **정적 호스팅 검증 OK** — release/만 서빙 시 200 OK
+- 런타임 외부 의존성: **0개** (devDependency: typescript만)
+
