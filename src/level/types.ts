@@ -12,6 +12,31 @@ export interface LevelCircle {
   r: number;
 }
 
+/**
+ * 변형(variant)의 한 base 레이아웃.
+ * 런타임에서 회전·색 순열을 적용해 Level로 resolve된다.
+ */
+export interface Variant {
+  dots: LevelDot[];
+  circle?: LevelCircle;
+}
+
+/**
+ * 레벨 템플릿 — JSON 팩에서 로드되는 단위.
+ * variants 중 하나 + 회전 각 + 색 매핑으로 한 판이 생성된다.
+ */
+export interface LevelTemplate {
+  id: number;
+  name: string;
+  width: number;
+  height: number;
+  variants: Variant[];
+}
+
+/**
+ * 한 판 플레이를 위한 resolve된 레벨.
+ * 게임 코드(Board, Renderer)는 이 형태만 본다.
+ */
 export interface Level {
   id: number;
   name: string;
@@ -28,5 +53,5 @@ export interface Level {
 
 export interface LevelPack {
   version: number;
-  levels: Level[];
+  levels: LevelTemplate[];
 }

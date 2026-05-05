@@ -173,3 +173,29 @@ CLAUDE.md 신규 규칙:
 - `levelsValid.test.ts`: 100 레벨 색약/solvable/non-trivial 통과
 - 전체: **396/396 테스트 통과**
 - 풀 빌드 OK: tsc strict 0 errors, dist.js 79KB
+
+### 20. 단조 난이도 곡선 + 변형(variant) 시스템
+**문제**: `difficultyOf` 가 `(id - 6) % 2`로 색 수가 {2,3,2,3,...} 진동 → 레벨 10이 2색일 수도 있어 들쑥날쑥. 또한 매 진입마다 같은 dot 배치를 보게 됨.
+
+**설계**:
+- 단조 비감소 step 곡선: 6-7→2, 8-9→3, 10-14→4, 15-24→5, 25-49→6, 50+→7. minLen·maxLen·cellSize 도 단조 강화.
+- 레벨당 3개의 base variant 를 미리 생성 → 런타임에 회전(±[30,150]°) + 색 매핑(호환 세트 풀에서 결정적 선택)으로 변형. 위상은 보존되므로 "비자명·풀이 가능" 성질 유지.
+- 사각판(6~7) dot 은 보드 내접 disk(반경 BOARD/2-30) 안에 위치하도록 강제 — 회전 후에도 보드 안.
+- disk boundary dot 은 회전 시 각도로부터 `(cx + r·cosθ, cy + r·sinθ)` 로 재구성 → float 오차 0.
+
+**구현**:
+- `src/level/types.ts`: `LevelTemplate` (variants 배열 보유) / `Variant` / `Level` (resolved) 분리
+- `src/level/colorConstraint.ts`: `enumerateCompatibleSets` — 적/녹 호환 부분집합 enum
+- `src/level/variant.ts`: `pickVariantParams`, `resolveLevel`, `applyVariant`, `isRotationSafe` (수동 SAMPLES 회전 보호)
+- `src/level/loader.ts`: `version: 2` 스키마 — `levels[i].variants: Variant[]`
+- `src/storage/persistence.ts`: variant params 영속화. `loadAllVariantParams` (부팅 시 1회) → 동기 API
+- `src/main.ts`: `buildGameScene` — `reuseVariant` 분기. retry 만 변형 유지, 그 외(메뉴/다음 레벨)는 새 변형
+- `src/scene/registry.ts`: `game(ctx, template, opts?)` — `LevelTemplate` 받음
+- `tools/generate-levels.ts` v5: SAMPLES 1~5 = 1 variant 유지, 6~100 = 3 variants 자동 생성
+
+**검증**:
+- 신규 `tests/variant.test.ts` 9건: 결정성, 회전각 범위, 색약 보존, solvability/non-triviality 보존, 보드 내 위치, boundary float 정확성, JSON round-trip
+- 기존 테스트 새 스키마로 갱신 (`levelLoader`, `levelsValid`)
+- solver 휴리스틱 false negative 대응: cellSize 단계 fallback (14→10→6)
+- 전체: **976/976 테스트 통과**
+- 풀 빌드 OK: dist.js 92KB

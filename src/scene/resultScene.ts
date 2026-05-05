@@ -163,14 +163,17 @@ export class ResultScene implements Scene {
   }
 
   private retry(): void {
-    this.ctx.app.setScene(sceneRegistry.game(this.ctx, this.args.level));
+    // 다시하기는 변형 유지
+    this.ctx.app.setScene(
+      sceneRegistry.game(this.ctx, this.args.template, { reuseVariant: true }),
+    );
   }
 
   private next(): void {
     if (!this.hasNext) return;
     const idx = this.ctx.pack.levels.findIndex((l) => l.id === this.args.level.id);
-    const nextLevel = this.ctx.pack.levels[idx + 1]!;
-    this.ctx.app.setScene(sceneRegistry.game(this.ctx, nextLevel));
+    const nextTemplate = this.ctx.pack.levels[idx + 1]!;
+    this.ctx.app.setScene(sceneRegistry.game(this.ctx, nextTemplate));
   }
 }
 

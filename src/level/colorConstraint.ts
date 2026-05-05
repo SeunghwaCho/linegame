@@ -60,3 +60,64 @@ export function pickCompatibleColors(
   }
   return allowed.slice(0, numColors).sort((a, b) => a - b);
 }
+
+/**
+ * 적/녹 호환을 만족하는 numColors 크기의 팔레트 부분집합을 모두 enum.
+ * 변형(variant)이 색을 새로 뽑을 때, 시드 기반으로 풀에서 결정적으로 선택하기 위함.
+ *
+ * 구현: 빨강 모드(GREEN_GROUP 제외) 가능 색들 + 초록 모드(RED_GROUP 제외) 가능 색들
+ *      각각에서 nCk 조합을 생성. 두 모드의 교집합(둘 다 사용 안 함)은 한 번만 카운트.
+ *
+ * 결과는 정렬된 색 ID 배열의 정렬된 목록(결정적).
+ */
+export function enumerateCompatibleSets(
+  numColors: number,
+  totalPalette: number,
+): number[][] {
+  if (numColors <= 0) return [];
+  if (numColors > maxCompatibleColors(totalPalette)) return [];
+
+  const collect = (forbidden: ReadonlySet<number>): number[][] => {
+    const allowed: number[] = [];
+    for (let c = 0; c < totalPalette; c++) {
+      if (!forbidden.has(c)) allowed.push(c);
+    }
+    if (numColors > allowed.length) return [];
+    const out: number[][] = [];
+    const cur: number[] = [];
+    const rec = (start: number): void => {
+      if (cur.length === numColors) {
+        out.push(cur.slice());
+        return;
+      }
+      const remaining = numColors - cur.length;
+      for (let i = start; i <= allowed.length - remaining; i++) {
+        cur.push(allowed[i]!);
+        rec(i + 1);
+        cur.pop();
+      }
+    };
+    rec(0);
+    return out;
+  };
+
+  const redMode = collect(GREEN_GROUP); // 빨강 그룹 사용 가능
+  const greenMode = collect(RED_GROUP); // 녹색 그룹 사용 가능
+  // 두 모드의 합집합 — 같은 부분집합(둘 다 RED·GREEN을 안 쓰는 것)은 중복 가능
+  const seen = new Set<string>();
+  const out: number[][] = [];
+  for (const arr of [...redMode, ...greenMode]) {
+    const key = arr.join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(arr);
+  }
+  // 결정적 정렬 — lex
+  out.sort((a, b) => {
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return a[i]! - b[i]!;
+    }
+    return 0;
+  });
+  return out;
+}

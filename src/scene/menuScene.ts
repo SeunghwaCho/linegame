@@ -2,12 +2,12 @@ import type { Scene } from "./scene.ts";
 import type { Layout, Rect } from "../ui/types.ts";
 import { pointInRect } from "../ui/types.ts";
 import type { SceneContext } from "./context.ts";
-import type { Level } from "../level/types.ts";
+import type { LevelTemplate } from "../level/types.ts";
 import { roundRect } from "../ui/button.ts";
 import { sceneRegistry } from "./registry.ts";
 
 interface CellRect extends Rect {
-  level: Level;
+  template: LevelTemplate;
   done: boolean;
   stars: number; // 0~3
 }
@@ -65,7 +65,7 @@ export class MenuScene implements Scene {
         y: startY + row * (size + gap),
         w: size,
         h: size,
-        level: lv,
+        template: lv,
         done: this.completed.has(lv.id),
         stars: this.bestStars.get(lv.id) ?? 0,
       });
@@ -133,7 +133,7 @@ export class MenuScene implements Scene {
       ctx.font = `${Math.floor(c.w * 0.32)}px -apple-system, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(c.level.id), c.x + c.w / 2, c.y + c.h * 0.42);
+      ctx.fillText(String(c.template.id), c.x + c.w / 2, c.y + c.h * 0.42);
       if (c.stars > 0) {
         // 셀 하단 별 ★★★ 미니어처
         const starSize = c.w * 0.16;
@@ -176,8 +176,8 @@ export class MenuScene implements Scene {
   onUp(cssX: number, cssY: number): void {
     const idx = this.cellIndexAt(cssX, cssY);
     if (idx !== -1 && idx === this.pressedIdx) {
-      const lv = this.cells[idx]!.level;
-      this.ctx.app.setScene(sceneRegistry.game(this.ctx, lv));
+      const tmpl = this.cells[idx]!.template;
+      this.ctx.app.setScene(sceneRegistry.game(this.ctx, tmpl));
     }
     this.pressedIdx = -1;
   }

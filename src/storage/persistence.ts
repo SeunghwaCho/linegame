@@ -7,6 +7,8 @@
  * IndexedDB가 없거나 손상되면 자동으로 in-memory fallback.
  * 모든 메서드는 Promise를 반환하므로 호출부는 동일하게 await 가능.
  */
+import type { VariantParams } from "../level/variant.ts";
+
 const DB_NAME = "linegame";
 const DB_VERSION = 1;
 const STORE = "kv";
@@ -15,6 +17,7 @@ const KEY_COMPLETED = "completedLevels";
 const KEY_LAST_LEVEL = "lastLevelId";
 const KEY_MUTED = "muted";
 const KEY_STARS = "bestStars"; // { [levelId]: stars }
+const KEY_VARIANTS = "variantParams"; // { [levelId]: VariantParams }
 
 export class Persistence {
   private db: IDBDatabase | null = null;
@@ -28,6 +31,38 @@ export class Persistence {
       console.warn("IndexedDB unavailable, using memory fallback:", err);
       this.usingMemory = true;
     }
+  }
+
+  /**
+   * 부팅 시 1회 호출 — variant params를 모두 메모리에 적재해
+   * 이후 동기 API(getVariantParams 등)가 가능하게 한다.
+   */
+  async loadAllVariantParams(): Promise<void> {
+    const obj = (await this.get<Record<string, VariantParams>>(KEY_VARIANTS)) ?? {};
+    this.memory.set(KEY_VARIANTS, obj);
+  }
+
+  private getVariantsObj(): Record<string, VariantParams> {
+    return (this.memory.get(KEY_VARIANTS) as Record<string, VariantParams> | undefined) ?? {};
+  }
+
+  /** 동기 — loadAllVariantParams 이후에만 정확. */
+  getVariantParams(levelId: number): VariantParams | undefined {
+    return this.getVariantsObj()[String(levelId)];
+  }
+
+  /** 동기로 메모리에 즉시 반영, IDB 쓰기는 백그라운드. */
+  setVariantParams(levelId: number, params: VariantParams): void {
+    const obj = { ...this.getVariantsObj(), [String(levelId)]: params };
+    this.memory.set(KEY_VARIANTS, obj);
+    void this.set(KEY_VARIANTS, obj);
+  }
+
+  clearVariantParams(levelId: number): void {
+    const obj = { ...this.getVariantsObj() };
+    delete obj[String(levelId)];
+    this.memory.set(KEY_VARIANTS, obj);
+    void this.set(KEY_VARIANTS, obj);
   }
 
   private openDb(): Promise<IDBDatabase> {

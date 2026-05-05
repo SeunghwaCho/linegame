@@ -1,7 +1,7 @@
 import type { Scene } from "./scene.ts";
 import type { Layout } from "../ui/types.ts";
 import type { SceneContext } from "./context.ts";
-import type { Level } from "../level/types.ts";
+import type { Level, LevelTemplate } from "../level/types.ts";
 import { Board } from "../game/board.ts";
 import { toGameDots } from "../level/loader.ts";
 import { Renderer } from "./renderer.ts";
@@ -29,6 +29,7 @@ function formatTime(sec: number): string {
 export class GameScene implements Scene {
   private readonly ctx: SceneContext;
   private readonly level: Level;
+  private readonly template: LevelTemplate;
   private readonly board: Board;
   private readonly renderer: Renderer;
   private readonly effects: Effects;
@@ -55,9 +56,10 @@ export class GameScene implements Scene {
   private static readonly LONG_PRESS_MS = 450;
   private static readonly LONG_PRESS_MOVE_TOLERANCE = 8;
 
-  constructor(c: SceneContext, level: Level) {
+  constructor(c: SceneContext, level: Level, template: LevelTemplate) {
     this.ctx = c;
     this.level = level;
+    this.template = template;
     this.board = new Board(toGameDots(level), {
       cellSize: 60,
       lineHalfWidth: 4,
@@ -421,10 +423,12 @@ export class GameScene implements Scene {
       void this.ctx.persistence.markCompleted(this.level.id);
       void this.ctx.persistence.recordStars(this.level.id, stars);
       const elapsed = this.elapsedSec;
+      const tmpl = this.template;
       setTimeout(() => {
         this.ctx.app.setScene(
           sceneRegistry.result(this.ctx, {
             level: this.level,
+            template: tmpl,
             stars,
             elapsedSec: elapsed,
           }),

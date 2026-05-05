@@ -7,10 +7,27 @@ import { GameScene } from "./scene/gameScene.ts";
 import { ResultScene } from "./scene/resultScene.ts";
 import { sceneRegistry } from "./scene/registry.ts";
 import type { SceneContext } from "./scene/context.ts";
+import { pickVariantParams, resolveLevel, makeRng } from "./level/variant.ts";
+import type { LevelTemplate } from "./level/types.ts";
+
+function buildGameScene(
+  ctx: SceneContext,
+  template: LevelTemplate,
+  opts?: { reuseVariant?: boolean },
+): GameScene {
+  let params = ctx.persistence.getVariantParams(template.id);
+  if (!opts?.reuseVariant || !params) {
+    const seed = (Date.now() ^ (template.id * 9931)) >>> 0;
+    params = pickVariantParams(template, makeRng(seed));
+    ctx.persistence.setVariantParams(template.id, params);
+  }
+  const level = resolveLevel(template, params);
+  return new GameScene(ctx, level, template);
+}
 
 // 순환 import 방지용 레지스트리 등록 (모듈 로드 직후 1회).
 sceneRegistry.menu = (ctx) => new MenuScene(ctx);
-sceneRegistry.game = (ctx, lv) => new GameScene(ctx, lv);
+sceneRegistry.game = (ctx, template, opts) => buildGameScene(ctx, template, opts);
 sceneRegistry.result = (ctx, args) => new ResultScene(ctx, args);
 
 async function main(): Promise<void> {
@@ -24,6 +41,7 @@ async function main(): Promise<void> {
   const sound = new Sound();
   const persistence = new Persistence();
   await persistence.init();
+  await persistence.loadAllVariantParams();
 
   // 뮤트 옵션 복원
   const muted = (await persistence.getMuted()) ?? false;
@@ -32,12 +50,12 @@ async function main(): Promise<void> {
   const app = new App(canvas);
   const ctx: SceneContext = { app, pack, persistence, sound };
 
-  // 마지막으로 열었던 레벨이 있으면 바로 그 게임으로, 아니면 메뉴.
+  // 마지막으로 열었던 레벨이 있으면 바로 그 게임으로 — 변형 유지.
   const lastLevelId = await persistence.getLastLevelId();
   if (lastLevelId !== undefined) {
-    const lv = pack.levels.find((l) => l.id === lastLevelId);
-    if (lv) {
-      app.setScene(new GameScene(ctx, lv));
+    const tmpl = pack.levels.find((l) => l.id === lastLevelId);
+    if (tmpl) {
+      app.setScene(buildGameScene(ctx, tmpl, { reuseVariant: true }));
       app.start();
       return;
     }
