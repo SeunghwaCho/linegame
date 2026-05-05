@@ -51,34 +51,34 @@ interface DifficultyConfig {
 }
 
 function difficultyOf(id: number): DifficultyConfig {
-  // 색 수: 단조 비감소 step. 6-7→2, 8-9→3, 10-14→4, 15-24→5, 25-49→6, 50+→7
+  // 색 수: 단조 비감소 step. 6-7→3, 8-9→4, 10-14→5, 15-24→6, 25+→7
   let numColors: number;
-  if (id <= 7) numColors = 2;
-  else if (id <= 9) numColors = 3;
-  else if (id <= 14) numColors = 4;
-  else if (id <= 24) numColors = 5;
-  else if (id <= 49) numColors = 6;
+  if (id <= 7) numColors = 3;
+  else if (id <= 9) numColors = 4;
+  else if (id <= 14) numColors = 5;
+  else if (id <= 24) numColors = 6;
   else numColors = 7;
 
+  // 25+ 는 색이 이미 max(7)이므로 길이·셀 크기로 난이도 차별화
   let cellSize: number;
   let minLen: number;
   let maxLen: number;
   if (id <= 15) {
-    cellSize = 32;
-    minLen = 6;
-    maxLen = 10;
-  } else if (id <= 35) {
     cellSize = 28;
-    minLen = 9;
+    minLen = 8;
     maxLen = 13;
-  } else if (id <= 60) {
+  } else if (id <= 35) {
     cellSize = 25;
-    minLen = 12;
+    minLen = 11;
     maxLen = 16;
-  } else {
+  } else if (id <= 60) {
     cellSize = 22;
     minLen = 14;
-    maxLen = 18;
+    maxLen = 19;
+  } else {
+    cellSize = 20;
+    minLen = 16;
+    maxLen = 22;
   }
   return { numColors, cellSize, minLen, maxLen };
 }
