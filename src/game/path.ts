@@ -24,6 +24,11 @@ export interface PathBuilderOptions {
   rewindRadius?: number;
   /** 라인 두께의 절반 — dot 충돌 반경에 더해진다 */
   lineHalfWidth?: number;
+  /**
+   * 원형 영역 제약. 있으면 path는 disk 안 (거리 ≤ r) 에 있어야 한다.
+   * 시작 dot이 boundary 위에 있는 케이스를 허용하기 위해 ≤ 비교 + 작은 tolerance.
+   */
+  circle?: { cx: number; cy: number; r: number };
 }
 
 /**
@@ -47,6 +52,8 @@ export class PathBuilder {
   private readonly minStep: number;
   private readonly rewindRadius: number;
   private readonly lineHalfWidth: number;
+  private readonly circle: { cx: number; cy: number; r: number } | null;
+  private static readonly CIRCLE_TOL = 0.5; // px
 
   private readonly segments: PathSegment[] = [];
   private tip: Point;
@@ -62,6 +69,7 @@ export class PathBuilder {
     this.minStep = opts.minStep ?? 2;
     this.rewindRadius = opts.rewindRadius ?? 12;
     this.lineHalfWidth = opts.lineHalfWidth ?? 4;
+    this.circle = opts.circle ?? null;
     this.tip = { x: opts.startDot.center.x, y: opts.startDot.center.y };
   }
 
@@ -120,6 +128,11 @@ export class PathBuilder {
     const dy = p.y - this.tip.y;
     if (dx * dx + dy * dy < this.minStep * this.minStep) {
       return { kind: "rejected", reason: "min-step" };
+    }
+
+    // 2.5) 원 영역 제약 — 새 끝점이 disk 밖이면 reject (disk 볼록성으로 chord도 안)
+    if (!this.pointInDisk(p)) {
+      return { kind: "rejected", reason: "out-of-bounds" };
     }
 
     const newSeg: Segment = { a: this.tip, b: { x: p.x, y: p.y } };
@@ -262,5 +275,14 @@ export class PathBuilder {
   /** finalize용: 최종 스냅 세그먼트가 타 path와 교차하는지만 확인. */
   private violatesIntersection(seg: Segment): boolean {
     return this.crossesOtherPath(seg) || this.crossesSelf(seg);
+  }
+
+  /** circle 제약이 없으면 항상 true. 있으면 점이 disk 안(거리 ≤ r + tol)인지. */
+  private pointInDisk(p: Point): boolean {
+    if (!this.circle) return true;
+    const dx = p.x - this.circle.cx;
+    const dy = p.y - this.circle.cy;
+    const lim = this.circle.r + PathBuilder.CIRCLE_TOL;
+    return dx * dx + dy * dy <= lim * lim;
   }
 }

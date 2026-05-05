@@ -89,3 +89,64 @@ test("커스텀 dot radius 보존", () => {
   const dots = toGameDots(pack.levels[0]!);
   assert.equal(dots[0]!.radius, 25);
 });
+
+test("circle: 한 dot은 boundary 위, 한 dot은 안에 있으면 OK", () => {
+  const json = JSON.stringify({
+    version: 1,
+    levels: [
+      {
+        id: 1,
+        name: "원형",
+        width: 400,
+        height: 400,
+        circle: { cx: 200, cy: 200, r: 180 },
+        dots: [
+          { id: 1, colorId: 0, x: 380, y: 200 }, // (200+180, 200) — boundary
+          { id: 2, colorId: 0, x: 200, y: 200 }, // 중심 — inside
+        ],
+      },
+    ],
+  });
+  const pack = parseLevelPack(json);
+  assert.equal(pack.levels[0]!.circle?.r, 180);
+});
+
+test("circle: dot 이 원 밖이면 에러", () => {
+  const json = JSON.stringify({
+    version: 1,
+    levels: [
+      {
+        id: 1,
+        name: "원형",
+        width: 400,
+        height: 400,
+        circle: { cx: 200, cy: 200, r: 100 },
+        dots: [
+          { id: 1, colorId: 0, x: 350, y: 200 }, // 원 밖
+          { id: 2, colorId: 0, x: 200, y: 200 },
+        ],
+      },
+    ],
+  });
+  assert.throws(() => parseLevelPack(json), /outside circle/);
+});
+
+test("circle: 두 dot이 둘 다 boundary 면 에러", () => {
+  const json = JSON.stringify({
+    version: 1,
+    levels: [
+      {
+        id: 1,
+        name: "원형",
+        width: 400,
+        height: 400,
+        circle: { cx: 200, cy: 200, r: 100 },
+        dots: [
+          { id: 1, colorId: 0, x: 300, y: 200 }, // boundary
+          { id: 2, colorId: 0, x: 100, y: 200 }, // boundary
+        ],
+      },
+    ],
+  });
+  assert.throws(() => parseLevelPack(json), /must have exactly 1 boundary/);
+});

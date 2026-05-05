@@ -58,11 +58,16 @@ export class GameScene implements Scene {
   constructor(c: SceneContext, level: Level) {
     this.ctx = c;
     this.level = level;
-    this.board = new Board(toGameDots(level), { cellSize: 60, lineHalfWidth: 4 });
+    this.board = new Board(toGameDots(level), {
+      cellSize: 60,
+      lineHalfWidth: 4,
+      circle: level.circle,
+    });
     this.renderer = new Renderer({
       worldWidth: level.width,
       worldHeight: level.height,
       lineWidth: 8,
+      circle: level.circle,
     });
 
     this.effects = new Effects();

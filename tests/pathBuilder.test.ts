@@ -168,3 +168,50 @@ test("finalize 후에는 더 이상 onPointerMove 처리 안함", () => {
   pb.onPointerMove(P(200, 0));
   assert.equal(pb.getSegmentCount(), segCount); // 변화 없음
 });
+
+test("circle 제약: 원 밖으로 향한 move는 out-of-bounds reject", () => {
+  // 원: 중심 (100,100), 반경 50. 시작 dot은 원 안.
+  const start = D(1, 0, 100, 100);
+  const hash = new SpatialHash(50);
+  const pb = new PathBuilder({
+    colorId: 0,
+    startDot: start,
+    allDots: [start],
+    spatialHash: hash,
+    pathId: 1,
+    minStep: 2,
+    rewindRadius: 10,
+    lineHalfWidth: 3,
+    circle: { cx: 100, cy: 100, r: 50 },
+  });
+  // 원 안 (거리 30) — 통과
+  let r = pb.onPointerMove(P(130, 100));
+  assert.equal(r.kind, "extended");
+  // 원 밖 (거리 100) — reject
+  r = pb.onPointerMove(P(200, 100));
+  assert.equal(r.kind, "rejected");
+  if (r.kind === "rejected") assert.equal(r.reason, "out-of-bounds");
+  // 원 안 (거리 40) — 통과
+  r = pb.onPointerMove(P(140, 100));
+  assert.equal(r.kind, "extended");
+});
+
+test("circle 제약: 시작 dot이 원 위에 있어도 진행 가능", () => {
+  // 원: 중심 (100,100), 반경 50. 시작 dot 은 boundary 위 (150, 100).
+  const start = D(1, 0, 150, 100);
+  const target = D(2, 0, 100, 100);
+  const hash = new SpatialHash(50);
+  const pb = new PathBuilder({
+    colorId: 0,
+    startDot: start,
+    allDots: [start, target],
+    spatialHash: hash,
+    pathId: 1,
+    minStep: 2,
+    rewindRadius: 10,
+    lineHalfWidth: 3,
+    circle: { cx: 100, cy: 100, r: 50 },
+  });
+  const r = pb.onPointerMove(P(100, 100));
+  assert.equal(r.kind, "finalized");
+});

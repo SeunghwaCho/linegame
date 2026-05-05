@@ -20,6 +20,8 @@ export interface BoardOptions {
   minStep?: number;
   rewindRadius?: number;
   lineHalfWidth?: number;
+  /** 있으면 모든 path가 disk 안에 갇힘 */
+  circle?: { cx: number; cy: number; r: number };
 }
 
 /**
@@ -31,7 +33,12 @@ export interface BoardOptions {
 export class Board {
   private readonly dots: ReadonlyArray<Dot>;
   private readonly hash: SpatialHash;
-  private readonly opts: Required<Omit<BoardOptions, "cellSize">>;
+  private readonly opts: {
+    minStep: number;
+    rewindRadius: number;
+    lineHalfWidth: number;
+    circle: { cx: number; cy: number; r: number } | null;
+  };
   private readonly finalized = new Map<number, FinalizedPath>();
   private current: PathBuilder | null = null;
   private nextPathId = 1;
@@ -43,6 +50,7 @@ export class Board {
       minStep: opts.minStep ?? 2,
       rewindRadius: opts.rewindRadius ?? 12,
       lineHalfWidth: opts.lineHalfWidth ?? 4,
+      circle: opts.circle ?? null,
     };
   }
 
@@ -101,6 +109,7 @@ export class Board {
       minStep: this.opts.minStep,
       rewindRadius: this.opts.rewindRadius,
       lineHalfWidth: this.opts.lineHalfWidth,
+      circle: this.opts.circle ?? undefined,
     });
     this.current = builder;
     return builder;

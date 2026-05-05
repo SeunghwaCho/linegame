@@ -1,7 +1,8 @@
-import type { Level, LevelPack, LevelDot } from "./types.ts";
+import type { Level, LevelPack, LevelDot, LevelCircle } from "./types.ts";
 import type { Dot } from "../game/types.ts";
 
 const DEFAULT_DOT_RADIUS = 18;
+const CIRCLE_BOUNDARY_TOL = 0.5; // px — float 누적 허용 오차
 
 /** JSON 텍스트를 LevelPack으로 파싱하고 기본 검증을 수행한다. */
 export function parseLevelPack(json: string): LevelPack {
@@ -52,7 +53,47 @@ function validateLevel(raw: unknown, idx: number): Level {
     ids.add(d.id);
   }
 
-  return { id, name, width, height, dots };
+  let circle: LevelCircle | undefined;
+  if (r.circle !== undefined) {
+    if (!isObj(r.circle)) throw new Error(`level[${idx}].circle must be object`);
+    const cr = r.circle as Record<string, unknown>;
+    circle = {
+      cx: num(cr.cx, `level[${idx}].circle.cx`),
+      cy: num(cr.cy, `level[${idx}].circle.cy`),
+      r: num(cr.r, `level[${idx}].circle.r`),
+    };
+    if (circle.r <= 0) throw new Error(`level[${idx}].circle.r must be > 0`);
+
+    // 색별로 정확히 한 dot은 원 위(거리 ≈ r), 나머지는 원 안(거리 < r)
+    const byColor = new Map<number, LevelDot[]>();
+    for (const d of dots) {
+      let arr = byColor.get(d.colorId);
+      if (!arr) {
+        arr = [];
+        byColor.set(d.colorId, arr);
+      }
+      arr.push(d);
+    }
+    for (const [c, ds] of byColor) {
+      let onBoundary = 0;
+      let inside = 0;
+      for (const d of ds) {
+        const dist = Math.hypot(d.x - circle.cx, d.y - circle.cy);
+        if (Math.abs(dist - circle.r) <= CIRCLE_BOUNDARY_TOL) onBoundary++;
+        else if (dist < circle.r - CIRCLE_BOUNDARY_TOL) inside++;
+        else
+          throw new Error(
+            `level[${idx}] color ${c} dot ${d.id} outside circle (dist=${dist.toFixed(2)}, r=${circle.r})`,
+          );
+      }
+      if (onBoundary !== 1 || inside !== 1)
+        throw new Error(
+          `level[${idx}] color ${c} must have exactly 1 boundary + 1 inside dot (got ${onBoundary} boundary, ${inside} inside)`,
+        );
+    }
+  }
+
+  return { id, name, width, height, dots, circle };
 }
 
 /** Level의 LevelDot[] 를 게임에서 쓰는 Dot[] 로 변환 (반경 기본값 적용). */

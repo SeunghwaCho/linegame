@@ -25,6 +25,31 @@ export function isSolvable(level: Level, opts: SolverOptions = {}): boolean {
   const cols = Math.ceil(level.width / cellSize);
   const rows = Math.ceil(level.height / cellSize);
 
+  // disk 마스크 — 원형 레벨이면 각 셀 중심이 disk 안 (거리 ≤ r) 인지로 판단.
+  // dot 이 들어있는 셀은 강제로 허용 (BFS가 dot 위치에서 출발/도착하기 위해).
+  const inDisk = (() => {
+    if (!level.circle) return null;
+    const { cx, cy, r } = level.circle;
+    const r2 = r * r;
+    const mask = new Uint8Array(cols * rows);
+    for (let ry = 0; ry < rows; ry++) {
+      for (let cx2 = 0; cx2 < cols; cx2++) {
+        const x = (cx2 + 0.5) * cellSize;
+        const y = (ry + 0.5) * cellSize;
+        const dx = x - cx;
+        const dy = y - cy;
+        if (dx * dx + dy * dy <= r2) mask[ry * cols + cx2] = 1;
+      }
+    }
+    // dot 이 들어있는 셀 강제 허용
+    for (const d of level.dots) {
+      const c = Math.min(cols - 1, Math.max(0, Math.floor(d.x / cellSize)));
+      const r3 = Math.min(rows - 1, Math.max(0, Math.floor(d.y / cellSize)));
+      mask[r3 * cols + c] = 1;
+    }
+    return mask;
+  })();
+
   // 색별 두 dot을 그룹화
   const byColor = new Map<number, LevelDot[]>();
   for (const d of level.dots) {
@@ -66,8 +91,11 @@ export function isSolvable(level: Level, opts: SolverOptions = {}): boolean {
   return false;
 
   function tryRoute(order: number[]): boolean {
-    // 격자: -1 = 빈 칸 / 100+colorId = 다른 색 dot (블록) / colorId = 그 색 path 점유
-    const grid: Int16Array = new Int16Array(cols * rows).fill(-1);
+    // 격자: -1 = 빈 칸 / -2 = 마스크 외 (disk 밖) / 100+colorId = 다른 색 dot (블록) / colorId = 그 색 path 점유
+    const grid: Int16Array = new Int16Array(cols * rows);
+    for (let i = 0; i < grid.length; i++) {
+      grid[i] = inDisk ? (inDisk[i] ? -1 : -2) : -1;
+    }
     // 모든 dot을 일단 100+colorId로 표시 (블록)
     for (const d of level.dots) {
       const [c, r] = dotCell(d);

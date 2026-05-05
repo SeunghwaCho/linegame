@@ -12,6 +12,11 @@ export type MoveResult =
   | { kind: "rewound"; segmentsPopped: number }
   | {
       kind: "rejected";
-      reason: "min-step" | "foreign-dot" | "cross-other" | "self-cross";
+      reason:
+        | "min-step"
+        | "foreign-dot"
+        | "cross-other"
+        | "self-cross"
+        | "out-of-bounds";
     }
   | { kind: "finalized"; endDot: Dot };

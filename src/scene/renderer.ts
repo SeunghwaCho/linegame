@@ -6,6 +6,8 @@ export interface RendererOptions {
   worldWidth: number;
   worldHeight: number;
   lineWidth?: number;
+  /** 있으면 원형 영역(테두리 + 외부 음영)을 그린다 */
+  circle?: { cx: number; cy: number; r: number };
 }
 
 /**
@@ -19,12 +21,14 @@ export class Renderer {
   private readonly worldWidth: number;
   private readonly worldHeight: number;
   private readonly lineWidth: number;
+  private readonly circle: { cx: number; cy: number; r: number } | null;
   private externalScale = 1;
 
   constructor(opts: RendererOptions) {
     this.worldWidth = opts.worldWidth;
     this.worldHeight = opts.worldHeight;
     this.lineWidth = opts.lineWidth ?? 8;
+    this.circle = opts.circle ?? null;
   }
 
   setExternalScale(s: number): void {
@@ -34,11 +38,24 @@ export class Renderer {
   draw(ctx: CanvasRenderingContext2D, board: Board): void {
     ctx.save();
     // 보드 배경
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, this.worldWidth, this.worldHeight);
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 1 / this.externalScale;
-    ctx.strokeRect(0, 0, this.worldWidth, this.worldHeight);
+    if (this.circle) {
+      // 원 밖은 비활성 음영, 안은 흰색
+      ctx.fillStyle = "#f1f3f5";
+      ctx.fillRect(0, 0, this.worldWidth, this.worldHeight);
+      ctx.beginPath();
+      ctx.arc(this.circle.cx, this.circle.cy, this.circle.r, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.strokeStyle = "#9aa3ad";
+      ctx.lineWidth = 2 / this.externalScale;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, this.worldWidth, this.worldHeight);
+      ctx.strokeStyle = "#e0e0e0";
+      ctx.lineWidth = 1 / this.externalScale;
+      ctx.strokeRect(0, 0, this.worldWidth, this.worldHeight);
+    }
 
     for (const fp of board.getFinalizedPaths().values()) {
       this.drawPolyline(

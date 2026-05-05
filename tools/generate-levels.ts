@@ -1,15 +1,15 @@
 /**
- * 1~100 레벨 데이터 생성기 v3 — 구성적(constructive) 생성기 사용.
+ * 1~100 레벨 데이터 생성기 v4 — 8판부터 원형 영역 puzzle.
  *
  * CLAUDE.md §8 준수:
  *   1) 풀 수 없는 레벨 금지 — 구성적 생성으로 자동 보장 (경로가 곧 해)
  *   2) 적녹색약 — pickCompatibleColors 사용
- *   3) (신규) 레벨 3 이상은 직선 단순 연결로 풀리는 케이스 금지
- *      → isTriviallySolvable 필터로 retry, 안 되면 build 실패.
+ *   3) 레벨 3 이상은 직선 단순 연결로 풀리는 케이스 금지
  *
  * - 1~5: 수동 레벨 (디자인된 비자명 케이스)
- * - 6~100: 구성적 생성기 + non-trivial 필터
- *   난이도(난수 워크 길이/색 수)는 4단계 점진 증가
+ * - 6~7: 일반 사각 보드, 구성적 생성기 + non-trivial 필터
+ * - 8~100: 원형 영역(disk) puzzle. 한 dot은 원 위(boundary), 한 dot은 원 안.
+ *          path는 disk 안에 갇힘. 색 수는 기존 곡선과 동일.
  *
  * 실행: node --experimental-strip-types tools/generate-levels.ts
  */
@@ -23,8 +23,13 @@ import {
   isCompatibleColorSet,
   maxCompatibleColors,
 } from "../src/level/colorConstraint.ts";
-import { constructiveGenerateNonTrivial } from "../src/level/constructive.ts";
-import type { Level } from "../src/level/types.ts";
+import {
+  constructiveGenerateNonTrivial,
+  constructiveGenerateWithColors,
+  type ConstructiveResult,
+} from "../src/level/constructive.ts";
+import { segmentsIntersect, pointSegDistance } from "../src/geometry/intersection.ts";
+import type { Level, LevelCircle } from "../src/level/types.ts";
 
 const PALETTE_SIZE = 8;
 const BOARD = 400;
@@ -160,6 +165,199 @@ function nameFor(id: number, n: number): string {
   return `${themes[id % themes.length]} ${id} (${n}색)`;
 }
 
+function nameForCircle(id: number, n: number): string {
+  const themes = ["원형 광장", "원형 회랑", "원형 미로", "회전목마", "동심원", "구슬"];
+  return `${themes[id % themes.length]} ${id} (${n}색)`;
+}
+
+const DOT_RADIUS = 18;
+// 원의 반경: 화면을 꽉 채우되 dot이 보드 밖으로 나가지 않게 약간 안쪽.
+const CIRCLE_R = 200 - 20; // BOARD/2 - 20 = 180
+
+interface SnappedResult {
+  dots: ConstructiveResult["dots"];
+  paths: ConstructiveResult["paths"];
+  circle: LevelCircle;
+}
+
+/**
+ * constructive 결과의 색별 시작 dot을 원 boundary로 스냅한 뒤 검증.
+ * 검증: 새 시작 segment가 (a) 다른 색 dot을 침범하지 않고 (b) 다른 색 path 와 교차하지 않음.
+ */
+function snapAndValidate(
+  r: ConstructiveResult,
+  cellSize: number,
+  circle: LevelCircle,
+): SnappedResult | null {
+  // 색별 walk segment 목록 — 셀 좌표를 px 중앙으로
+  const px = (c: number): number => Math.round((c + 0.5) * cellSize);
+  interface ColorPath {
+    colorId: number;
+    segments: Array<[{ x: number; y: number }, { x: number; y: number }]>;
+    snapPt: { x: number; y: number };
+  }
+  const colorPaths: ColorPath[] = [];
+  for (let i = 0; i < r.paths.length; i++) {
+    const walk = r.paths[i]!;
+    const colorId = r.dots[i * 2]!.colorId;
+    // 시작 cell 중심
+    const c0 = walk[0]!;
+    const cx0 = px(c0[0]);
+    const cy0 = px(c0[1]);
+    // 원 중심에서 cell 중심으로의 방향 단위벡터
+    const dx = cx0 - circle.cx;
+    const dy = cy0 - circle.cy;
+    const dlen = Math.hypot(dx, dy);
+    if (dlen < 1) return null; // cell 이 원 중심에 있음 — 방향 정의 불가
+    const ux = dx / dlen;
+    const uy = dy / dlen;
+    const snapPt = {
+      x: circle.cx + ux * circle.r,
+      y: circle.cy + uy * circle.r,
+    };
+    // 세그먼트 시퀀스: snapPt → C1 → C2 → ... → Cn-1
+    const segs: Array<[{ x: number; y: number }, { x: number; y: number }]> = [];
+    let prev = snapPt;
+    for (let j = 1; j < walk.length; j++) {
+      const cj = walk[j]!;
+      const cur = { x: px(cj[0]), y: px(cj[1]) };
+      segs.push([prev, cur]);
+      prev = cur;
+    }
+    if (segs.length === 0) return null; // 워크가 1셀짜리
+    colorPaths.push({ colorId, segments: segs, snapPt });
+  }
+
+  // 색별 시작/끝 dot 결정
+  const dots: ConstructiveResult["dots"] = [];
+  let nextDotId = 1;
+  for (let i = 0; i < r.paths.length; i++) {
+    const walk = r.paths[i]!;
+    const colorId = r.dots[i * 2]!.colorId;
+    const last = walk[walk.length - 1]!;
+    dots.push({
+      id: nextDotId++,
+      colorId,
+      x: colorPaths[i]!.snapPt.x,
+      y: colorPaths[i]!.snapPt.y,
+    });
+    dots.push({
+      id: nextDotId++,
+      colorId,
+      x: px(last[0]),
+      y: px(last[1]),
+    });
+  }
+
+  // 검증 1: 다른 색 dot 이 어떤 segment 의 (radius+1) 안을 통과하면 안 됨
+  for (const cp of colorPaths) {
+    for (const d of dots) {
+      if (d.colorId === cp.colorId) continue;
+      for (const [a, b] of cp.segments) {
+        if (pointSegDistance(a, b, { x: d.x, y: d.y }) < DOT_RADIUS + 1) {
+          return null;
+        }
+      }
+    }
+  }
+
+  // 검증 2: 서로 다른 색 segment 간 교차 금지 (snap segment 포함)
+  for (let i = 0; i < colorPaths.length; i++) {
+    for (let j = i + 1; j < colorPaths.length; j++) {
+      const A = colorPaths[i]!.segments;
+      const B = colorPaths[j]!.segments;
+      for (const sa of A) {
+        for (const sb of B) {
+          if (segmentsIntersect({ a: sa[0], b: sa[1] }, { a: sb[0], b: sb[1] })) {
+            return null;
+          }
+        }
+      }
+    }
+  }
+
+  // 검증 3: 동일 색 내 자기교차 (snap segment 가 본인 경로와 만나는지)
+  for (const cp of colorPaths) {
+    const segs = cp.segments;
+    for (let i = 0; i < segs.length; i++) {
+      for (let j = i + 2; j < segs.length; j++) {
+        // 인접 segment 는 endpoint 공유로 항상 교차 — 제외
+        const sa = segs[i]!;
+        const sb = segs[j]!;
+        if (segmentsIntersect({ a: sa[0], b: sa[1] }, { a: sb[0], b: sb[1] })) {
+          return null;
+        }
+      }
+    }
+  }
+
+  return { dots, paths: r.paths, circle };
+}
+
+const CIRCLE_MAX_RETRIES = 400;
+
+function generateCircleLevel(id: number): Level {
+  const cfg = difficultyOf(id);
+  const numColors = Math.min(cfg.numColors, maxCompatibleColors(PALETTE_SIZE));
+  const circle: LevelCircle = { cx: BOARD / 2, cy: BOARD / 2, r: CIRCLE_R };
+  const cellSize = cfg.cellSize;
+  const cx = circle.cx;
+  const cy = circle.cy;
+  // 셀 중심이 disk 안쪽 — 셀이 disk 경계에 너무 가깝지 않게 cellSize*0.5 안쪽 마진.
+  const innerLimit = circle.r - cellSize * 0.5;
+  // boundary ring: 시작 셀 후보. disk 경계에서 약 cellSize*2 폭의 띠.
+  const ringInner = circle.r - cellSize * 2.2;
+
+  const cellAllowed = (c: number, r: number): boolean => {
+    const x = (c + 0.5) * cellSize;
+    const y = (r + 0.5) * cellSize;
+    const d = Math.hypot(x - cx, y - cy);
+    return d <= innerLimit;
+  };
+  const startCellAllowed = (c: number, r: number): boolean => {
+    const x = (c + 0.5) * cellSize;
+    const y = (r + 0.5) * cellSize;
+    const d = Math.hypot(x - cx, y - cy);
+    return d > ringInner && d <= innerLimit;
+  };
+
+  for (let attempt = 0; attempt < CIRCLE_MAX_RETRIES; attempt++) {
+    const seed = id * 9311 + 60013 + attempt * 137;
+    const rng = pickRng(seed);
+    const colors = pickCompatibleColors(numColors, PALETTE_SIZE, rng);
+    if (!isCompatibleColorSet(colors)) continue;
+
+    // 워크 생성 (mask 적용)
+    const r = constructiveGenerateWithColors(colors, {
+      width: BOARD,
+      height: BOARD,
+      cellSize,
+      minLen: cfg.minLen,
+      maxLen: cfg.maxLen,
+      seed,
+      maxWalkAttempts: 12,
+      cellAllowed,
+      startCellAllowed,
+    });
+    if (!r) continue;
+
+    const snapped = snapAndValidate(r, cellSize, circle);
+    if (!snapped) continue;
+
+    const lvl: Level = {
+      id,
+      name: nameForCircle(id, numColors),
+      width: BOARD,
+      height: BOARD,
+      dots: snapped.dots,
+      circle,
+    };
+    if (isTriviallySolvable(lvl)) continue;
+    return lvl;
+  }
+  throw new Error(`레벨 ${id}: 원형 puzzle 생성 실패 (${CIRCLE_MAX_RETRIES}회 시도)`);
+}
+
 function generateAccepted(id: number): Level {
   const cfg = difficultyOf(id);
   const numColors = Math.min(cfg.numColors, maxCompatibleColors(PALETTE_SIZE));
@@ -217,7 +415,10 @@ function buildAll(): Level[] {
       throw new Error(`수동 레벨 ${s.id} 직선 풀이 가능 (CLAUDE.md §8 위반)`);
     all.push(s);
   }
-  for (let id = 6; id <= 100; id++) all.push(generateAccepted(id));
+  // 6~7: 일반 사각 보드
+  for (let id = 6; id <= 7; id++) all.push(generateAccepted(id));
+  // 8~100: 원형 영역 puzzle
+  for (let id = 8; id <= 100; id++) all.push(generateCircleLevel(id));
   return all;
 }
 

@@ -147,3 +147,29 @@ CLAUDE.md 신규 규칙:
 - **정적 호스팅 검증 OK** — release/만 서빙 시 200 OK
 - 런타임 외부 의존성: **0개** (devDependency: typescript만)
 
+
+## 2026-05-05 (속편) — 8판부터 원형 영역 puzzle (난이도 강화)
+
+### 17. circle 제약 도입 — 8판부터 disk 안에 갇힌 path
+- 요구: 8판부터 한 dot은 화면을 꽉 채우는 원 위, 나머지 한 dot은 원 안. 선이 원 밖으로 나가면 안 됨.
+- `Level.circle?: { cx, cy, r }` 추가 (선택 필드, 1~7판은 미설정)
+- `loader.ts`: circle 검증 — 색별로 정확히 1개 boundary + 1개 inside dot 강제, 원 밖 dot 거부
+- `path.ts`: `PathBuilder` 에 `circle` 옵션 + `out-of-bounds` reject. 끝점이 disk 밖이면 차단 (disk 볼록성으로 chord 자동 보장)
+- `board.ts` / `gameScene.ts`: Board → PathBuilder 로 circle 옵션 전달
+- `renderer.ts`: circle 있으면 원 외부 음영(#f1f3f5) + 흰색 disk + 회색 테두리
+
+### 18. 원형 puzzle 생성기
+- `constructive.ts`: `cellAllowed`, `startCellAllowed` predicate 추가 (격자에 마스크)
+- `tools/generate-levels.ts`:
+  - 8~100판: `generateCircleLevel` — disk 마스크로 셀 제한, 시작 셀은 boundary ring 에서만 선택
+  - 워크 종료 후 시작 dot 을 cell 중심에서 원 boundary 로 스냅 (radial 방향)
+  - 스냅 후 검증: 새 첫 segment 가 (a) 다른 색 dot 침범 X (b) 다른 색 path 와 교차 X (c) 자기 path 와 교차 X
+  - 1~5: 수동, 6~7: 일반 사각, 8~100: 원형 (CIRCLE_R=180, BOARD/2-20)
+- `solver.ts`: `Level.circle` 인지 — disk 마스크 셀만 BFS 통과 허용 (dot 셀은 강제 허용)
+
+### 19. 테스트
+- `pathBuilder.test.ts`: circle out-of-bounds reject, boundary 시작 dot 진행 가능 (2)
+- `levelLoader.test.ts`: circle 정상 + 밖 dot 에러 + 모두 boundary 에러 (3)
+- `levelsValid.test.ts`: 100 레벨 색약/solvable/non-trivial 통과
+- 전체: **396/396 테스트 통과**
+- 풀 빌드 OK: tsc strict 0 errors, dist.js 79KB

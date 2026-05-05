@@ -23,6 +23,10 @@ export interface ConstructiveOptions {
   seed: number;
   /** 한 색당 워크 시도 횟수 */
   maxWalkAttempts?: number;
+  /** 셀(c, r)을 사용 가능한지 — 없으면 모든 셀 허용. 격자에 마스크를 입힐 때 사용. */
+  cellAllowed?: (c: number, r: number) => boolean;
+  /** 시작 셀로 가능한지 — 없으면 cellAllowed 와 동일. boundary ring 강제용. */
+  startCellAllowed?: (c: number, r: number) => boolean;
 }
 
 export interface ConstructiveResult {
@@ -62,10 +66,17 @@ function tryGenerate(
   maxLen: number,
   rng: () => number,
   maxWalkAttempts: number,
+  cellAllowed: (c: number, r: number) => boolean,
+  startCellAllowed: (c: number, r: number) => boolean,
 ): ConstructiveResult | null {
-  // grid: -1 = free, 그 외는 colorId
-  const grid = new Int16Array(cols * rows).fill(-1);
+  // grid: -2 = 마스크 (사용 금지), -1 = free, 그 외는 colorId
+  const grid = new Int16Array(cols * rows);
   const idx = (c: number, r: number): number => r * cols + c;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      grid[idx(c, r)] = cellAllowed(c, r) ? -1 : -2;
+    }
+  }
   const dots: ConstructiveResult["dots"] = [];
   const paths: ConstructiveResult["paths"] = [];
   let nextDotId = 1;
@@ -73,11 +84,11 @@ function tryGenerate(
   for (const colorId of colorIds) {
     let walked: Array<[number, number]> | null = null;
     for (let att = 0; att < maxWalkAttempts && !walked; att++) {
-      // 빈 셀 중 임의 시작
+      // 시작 셀: startCellAllowed 통과 + 비어있는 것 중 무작위
       const free: Array<[number, number]> = [];
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          if (grid[idx(c, r)] === -1) free.push([c, r]);
+          if (grid[idx(c, r)] === -1 && startCellAllowed(c, r)) free.push([c, r]);
         }
       }
       if (free.length === 0) return null;
@@ -150,6 +161,8 @@ export function constructiveGenerate(
   const colorIds = Array.from({ length: opts.numColors }, (_, i) => i); // caller가 바꿔치기
   // 색 순서 무작위
   shuffle(colorIds, rng);
+  const cellAllowed = opts.cellAllowed ?? (() => true);
+  const startCellAllowed = opts.startCellAllowed ?? cellAllowed;
   return tryGenerate(
     colorIds,
     cols,
@@ -159,6 +172,8 @@ export function constructiveGenerate(
     opts.maxLen,
     rng,
     opts.maxWalkAttempts ?? 5,
+    cellAllowed,
+    startCellAllowed,
   );
 }
 
@@ -171,6 +186,8 @@ export function constructiveGenerateWithColors(
   const rng = makeRng(opts.seed);
   const order = colorIds.slice();
   shuffle(order, rng);
+  const cellAllowed = opts.cellAllowed ?? (() => true);
+  const startCellAllowed = opts.startCellAllowed ?? cellAllowed;
   return tryGenerate(
     order,
     cols,
@@ -180,6 +197,8 @@ export function constructiveGenerateWithColors(
     opts.maxLen,
     rng,
     opts.maxWalkAttempts ?? 5,
+    cellAllowed,
+    startCellAllowed,
   );
 }
 
